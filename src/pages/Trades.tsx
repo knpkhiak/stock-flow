@@ -7,9 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, ChevronDown, ChevronRight, RefreshCw, Download, AlertTriangle } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, RefreshCw, Download, AlertTriangle, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import NewTradeDialog from "@/components/trades/NewTradeDialog";
 import CloseTradeDialog from "@/components/trades/CloseTradeDialog";
 import { NewHoldingDialog, AddBuyDialog, SellHoldingDialog } from "@/components/longterm/LongtermDialogs";
 import ImportHoldingsDialog from "@/components/trades/ImportHoldingsDialog";
