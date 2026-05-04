@@ -49,10 +49,10 @@ export default function Login() {
       <Card className="glass-card w-full max-w-md p-8 relative">
         <div className="flex items-center gap-3 mb-8">
           <div className="h-10 w-10 rounded-lg bg-[image:var(--gradient-primary)] flex items-center justify-center font-bold text-primary-foreground shadow-[var(--shadow-glow)]">
-            F
+            S
           </div>
           <div>
-            <h1 className="text-xl font-semibold">FinFlow</h1>
+            <h1 className="text-xl font-semibold">STOCK-FLOW</h1>
             <p className="text-xs text-muted-foreground">개인 금융자산 관리</p>
           </div>
         </div>
