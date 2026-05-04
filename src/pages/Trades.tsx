@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -147,7 +147,7 @@ export default function Trades() {
                   const days = daysBetween(t.entry_date, today);
                   const isOpen = expanded[t.id];
                   return (
-                    <FragmentWithKey key={t.id}>
+                    <Fragment key={t.id}>
                       <TableRow key={t.id}>
                         <TableCell>
                           {tc.length > 0 ? (
@@ -200,7 +200,7 @@ export default function Trades() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </FragmentWithKey>
+                    </Fragment>
                   );
                 })}
               </TableBody>
@@ -256,7 +256,7 @@ export default function Trades() {
                   const heldDays = t.exit_date ? daysBetween(t.entry_date, t.exit_date) : 0;
                   const isOpen = expanded[t.id];
                   return (
-                    <FragmentWithKey key={t.id}>
+                    <Fragment key={t.id}>
                       <TableRow key={t.id}>
                         <TableCell>
                           {tc.length > 1 ? (
@@ -305,7 +305,7 @@ export default function Trades() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </FragmentWithKey>
+                    </Fragment>
                   );
                 })}
               </TableBody>
