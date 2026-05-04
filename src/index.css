@@ -46,6 +46,10 @@
     --sidebar-border: 217 33% 15%;
     --sidebar-ring: 158 84% 39%;
 
+    --market-domestic: 217 91% 60%;
+    --market-overseas: 258 90% 66%;
+    --market-crypto: 25 95% 53%;
+
     --gradient-primary: linear-gradient(135deg, hsl(158 84% 39%), hsl(158 84% 49%));
     --gradient-card: linear-gradient(135deg, hsl(222 39% 11% / 0.9), hsl(222 39% 13% / 0.7));
     --shadow-glow: 0 0 40px -8px hsl(158 84% 39% / 0.3);

@@ -18,33 +18,36 @@ export type Database = {
         Row: {
           close_date: string
           close_price: number
+          close_quantity: number
           created_at: string
+          holding_days: number
           id: string
           memo: string | null
           pnl_rate: number
-          quantity: number
           realized_pnl: number
           trade_id: string
         }
         Insert: {
           close_date: string
           close_price: number
+          close_quantity: number
           created_at?: string
+          holding_days: number
           id?: string
           memo?: string | null
           pnl_rate: number
-          quantity: number
           realized_pnl: number
           trade_id: string
         }
         Update: {
           close_date?: string
           close_price?: number
+          close_quantity?: number
           created_at?: string
+          holding_days?: number
           id?: string
           memo?: string | null
           pnl_rate?: number
-          quantity?: number
           realized_pnl?: number
           trade_id?: string
         }
@@ -60,55 +63,52 @@ export type Database = {
       }
       trades: {
         Row: {
+          avg_close_price: number | null
           created_at: string
           entry_date: string
           entry_price: number
-          exit_date: string | null
-          exit_price: number | null
           id: string
           idea_id: string | null
           market: string
           memo: string | null
           name: string
-          pnl_rate: number | null
-          quantity: number
-          realized_pnl: number | null
+          remaining_quantity: number
           status: string
           ticker: string
+          total_quantity: number
+          total_realized_pnl: number | null
         }
         Insert: {
+          avg_close_price?: number | null
           created_at?: string
           entry_date: string
           entry_price: number
-          exit_date?: string | null
-          exit_price?: number | null
           id?: string
           idea_id?: string | null
           market: string
           memo?: string | null
           name: string
-          pnl_rate?: number | null
-          quantity: number
-          realized_pnl?: number | null
+          remaining_quantity?: number
           status?: string
           ticker: string
+          total_quantity: number
+          total_realized_pnl?: number | null
         }
         Update: {
+          avg_close_price?: number | null
           created_at?: string
           entry_date?: string
           entry_price?: number
-          exit_date?: string | null
-          exit_price?: number | null
           id?: string
           idea_id?: string | null
           market?: string
           memo?: string | null
           name?: string
-          pnl_rate?: number | null
-          quantity?: number
-          realized_pnl?: number | null
+          remaining_quantity?: number
           status?: string
           ticker?: string
+          total_quantity?: number
+          total_realized_pnl?: number | null
         }
         Relationships: []
       }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -21,8 +21,7 @@ interface Props {
 }
 
 export default function CloseTradeDialog({ trade, closes, onOpenChange, onSaved }: Props) {
-  const closedQty = closes.reduce((s, c) => s + Number(c.quantity), 0);
-  const remaining = trade ? Number(trade.quantity) - closedQty : 0;
+  const remaining = trade ? Number(trade.remaining_quantity) : 0;
 
   const [exitDate, setExitDate] = useState<Date | undefined>(new Date());
   const [exitPrice, setExitPrice] = useState("");
@@ -53,6 +52,7 @@ export default function CloseTradeDialog({ trade, closes, onOpenChange, onSaved 
     }
     const realized = (ep - Number(trade.entry_price)) * q;
     const rate = ((ep - Number(trade.entry_price)) / Number(trade.entry_price)) * 100;
+    const holdingDays = Math.max(0, differenceInCalendarDays(exitDate, new Date(trade.entry_date)));
 
     setSaving(true);
 
@@ -60,67 +60,56 @@ export default function CloseTradeDialog({ trade, closes, onOpenChange, onSaved 
       trade_id: trade.id,
       close_date: format(exitDate, "yyyy-MM-dd"),
       close_price: ep,
-      quantity: q,
+      close_quantity: q,
       realized_pnl: realized,
       pnl_rate: rate,
+      holding_days: holdingDays,
       memo: memo || null,
     });
 
-    if (insErr) {
-      setSaving(false);
-      toast.error(insErr.message);
-      return;
-    }
+    if (insErr) { setSaving(false); toast.error(insErr.message); return; }
 
-    const isFinal = q >= remaining;
-    if (isFinal) {
-      // aggregate across all closes
-      const allCloses = [
-        ...closes,
-        { close_price: ep, quantity: q, realized_pnl: realized } as any,
-      ];
-      const totalQty = allCloses.reduce((s, c) => s + Number(c.quantity), 0);
-      const totalPnl = allCloses.reduce((s, c) => s + Number(c.realized_pnl), 0);
-      const wAvgExit = allCloses.reduce((s, c) => s + Number(c.close_price) * Number(c.quantity), 0) / totalQty;
-      const aggRate = ((wAvgExit - Number(trade.entry_price)) / Number(trade.entry_price)) * 100;
+    // recompute aggregates from all closes
+    const all = [
+      ...closes.map((c) => ({ p: Number(c.close_price), q: Number(c.close_quantity), r: Number(c.realized_pnl) })),
+      { p: ep, q, r: realized },
+    ];
+    const totalQty = all.reduce((s, x) => s + x.q, 0);
+    const totalPnl = all.reduce((s, x) => s + x.r, 0);
+    const wAvg = all.reduce((s, x) => s + x.p * x.q, 0) / totalQty;
 
-      const { error: updErr } = await supabase.from("trades").update({
-        status: "CLOSED",
-        exit_date: format(exitDate, "yyyy-MM-dd"),
-        exit_price: wAvgExit,
-        realized_pnl: totalPnl,
-        pnl_rate: aggRate,
-      }).eq("id", trade.id);
-      if (updErr) {
-        setSaving(false);
-        toast.error(updErr.message);
-        return;
-      }
-    }
+    const newRemaining = Number(trade.total_quantity) - totalQty;
+    const newStatus = newRemaining <= 0 ? "CLOSED" : "PARTIAL";
+
+    const { error: updErr } = await supabase.from("trades").update({
+      remaining_quantity: Math.max(0, newRemaining),
+      avg_close_price: wAvg,
+      total_realized_pnl: totalPnl,
+      status: newStatus,
+    }).eq("id", trade.id);
 
     setSaving(false);
-    toast.success(isFinal ? "포지션이 전부 청산되었습니다" : "분할 청산이 기록되었습니다");
+    if (updErr) { toast.error(updErr.message); return; }
+    toast.success(newStatus === "CLOSED" ? "포지션이 전부 청산되었습니다" : "분할 청산이 기록되었습니다");
     onOpenChange(false);
     onSaved();
   };
 
   const previewPnl = trade && exitPrice && qty
-    ? (Number(exitPrice) - Number(trade.entry_price)) * Number(qty)
-    : 0;
+    ? (Number(exitPrice) - Number(trade.entry_price)) * Number(qty) : 0;
   const previewRate = trade && exitPrice
-    ? ((Number(exitPrice) - Number(trade.entry_price)) / Number(trade.entry_price)) * 100
-    : 0;
+    ? ((Number(exitPrice) - Number(trade.entry_price)) / Number(trade.entry_price)) * 100 : 0;
 
   return (
     <Dialog open={!!trade} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>포지션 닫기 — {trade?.name} ({trade?.ticker})</DialogTitle>
+          <DialogTitle>부분 청산 — {trade?.name} ({trade?.ticker})</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm space-y-1">
-            <div>진입가 <span className="tabular-nums font-medium">{trade?.entry_price}</span> · 원 수량 <span className="tabular-nums">{trade?.quantity}</span></div>
-            <div>이미 청산: <span className="tabular-nums">{closedQty}</span> / 잔여: <span className="tabular-nums font-medium text-primary">{remaining}</span></div>
+            <div>진입가 <span className="tabular-nums font-medium">{trade?.entry_price}</span> · 총수량 <span className="tabular-nums">{trade?.total_quantity}</span></div>
+            <div>잔여: <span className="tabular-nums font-medium text-primary">{remaining}</span></div>
           </div>
 
           <div className="space-y-1">

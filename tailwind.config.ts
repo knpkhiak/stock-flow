@@ -47,6 +47,11 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        market: {
+          domestic: "hsl(var(--market-domestic))",
+          overseas: "hsl(var(--market-overseas))",
+          crypto: "hsl(var(--market-crypto))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
