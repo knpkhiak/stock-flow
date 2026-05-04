@@ -222,6 +222,7 @@ export default function Trades() {
         <TabsList>
           <TabsTrigger value="open">오픈 포지션 ({open.length})</TabsTrigger>
           <TabsTrigger value="history">매매 히스토리 ({closedTrades.length})</TabsTrigger>
+          <TabsTrigger value="longterm">장기투자 종목 ({holdings.length})</TabsTrigger>
         </TabsList>
 
         {/* OPEN POSITIONS */}
