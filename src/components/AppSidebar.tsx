@@ -23,11 +23,11 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-3">
           <div className="h-8 w-8 rounded-lg bg-[image:var(--gradient-primary)] flex items-center justify-center font-bold text-primary-foreground shadow-[var(--shadow-glow)]">
-            F
+            S
           </div>
           {!collapsed && (
             <div>
-              <div className="font-semibold text-sidebar-foreground">FinFlow</div>
+              <div className="font-semibold text-sidebar-foreground">STOCK-FLOW</div>
               <div className="text-xs text-muted-foreground">Personal Finance</div>
             </div>
           )}
@@ -56,7 +56,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="px-3 py-2 text-xs text-muted-foreground">
-          {collapsed ? "v1.0" : "FinFlow v1.0"}
+          {collapsed ? "v1.0" : "STOCK-FLOW v1.0"}
         </div>
       </SidebarFooter>
     </Sidebar>

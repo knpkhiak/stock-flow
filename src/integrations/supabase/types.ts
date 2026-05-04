@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      trade_closes: {
+        Row: {
+          close_date: string
+          close_price: number
+          created_at: string
+          id: string
+          memo: string | null
+          pnl_rate: number
+          quantity: number
+          realized_pnl: number
+          trade_id: string
+        }
+        Insert: {
+          close_date: string
+          close_price: number
+          created_at?: string
+          id?: string
+          memo?: string | null
+          pnl_rate: number
+          quantity: number
+          realized_pnl: number
+          trade_id: string
+        }
+        Update: {
+          close_date?: string
+          close_price?: number
+          created_at?: string
+          id?: string
+          memo?: string | null
+          pnl_rate?: number
+          quantity?: number
+          realized_pnl?: number
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_closes_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trades: {
         Row: {
           created_at: string
