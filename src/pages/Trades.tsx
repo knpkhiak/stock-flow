@@ -97,6 +97,7 @@ export default function Trades() {
   const [buyTarget, setBuyTarget] = useState<LongtermHolding | null>(null);
   const [sellTarget, setSellTarget] = useState<LongtermHolding | null>(null);
   const [setupStatus, setSetupStatus] = useState<InitialSetupStatus>(getInitialSetup());
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     const sync = () => setSetupStatus(getInitialSetup());
