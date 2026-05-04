@@ -99,6 +99,32 @@ interface KisExecution {
   tot_ccld_amt?: string;
 }
 
+// 국내 주식 현재가 조회. 장 외 시간엔 KIS가 마지막 정규장 종가 반환.
+async function inquirePrice(env: "real" | "paper", ticker: string) {
+  const base = env === "paper" ? PAPER_BASE : REAL_BASE;
+  const trId = "FHKST01010100"; // 주식현재가 시세 (실전·모의 동일)
+  const token = await getToken(env);
+  const params = new URLSearchParams({
+    FID_COND_MRKT_DIV_CODE: "J",
+    FID_INPUT_ISCD: ticker,
+  });
+  const res = await fetch(
+    `${base}/uapi/domestic-stock/v1/quotations/inquire-price?${params}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        authorization: `Bearer ${token}`,
+        appkey: APP_KEY,
+        appsecret: APP_SECRET,
+        tr_id: trId,
+      },
+    },
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(`price failed: ${JSON.stringify(data)}`);
+  return data;
+}
+
 async function inquireExecutions(env: "real" | "paper", fromDate: string, toDate: string) {
   const base = env === "paper" ? PAPER_BASE : REAL_BASE;
   const trId = env === "paper" ? "VTTC8001R" : "TTTC8001R";
