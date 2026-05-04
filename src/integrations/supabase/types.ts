@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      asset_snapshots: {
+        Row: {
+          cash_balance: number
+          created_at: string
+          id: string
+          longterm_balance: number
+          memo: string | null
+          snapshot_date: string
+          total_balance: number
+          trading_balance: number
+        }
+        Insert: {
+          cash_balance?: number
+          created_at?: string
+          id?: string
+          longterm_balance?: number
+          memo?: string | null
+          snapshot_date: string
+          total_balance?: number
+          trading_balance?: number
+        }
+        Update: {
+          cash_balance?: number
+          created_at?: string
+          id?: string
+          longterm_balance?: number
+          memo?: string | null
+          snapshot_date?: string
+          total_balance?: number
+          trading_balance?: number
+        }
+        Relationships: []
+      }
       trade_closes: {
         Row: {
           close_date: string
