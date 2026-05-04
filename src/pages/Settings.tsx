@@ -1,10 +1,21 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CheckCircle2, Circle, AlertCircle, RefreshCw, KeyRound, Info, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Circle, AlertCircle, RefreshCw, KeyRound, Info, ShieldCheck, AlertTriangle, Trash2 } from "lucide-react";
+import { setInitialSetup } from "@/lib/initialSetup";
 
 const ENV_KEY = "stock-flow-kis-env";
 const STATUS_KEY = "stock-flow-kis-status";
