@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, TrendingUp, Wallet, PiggyBank
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SnapshotDialog from "@/components/assets/SnapshotDialog";
+import CashDialog from "@/components/cash/CashDialog";
 import { fmtKRW, fmtSignedKRW, fmtPct, fmtCompactKRW } from "@/lib/format";
 import {
   PieChart, Pie, Cell, Tooltip as RTooltip, ResponsiveContainer,
@@ -15,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MARKETS, marketColorVar } from "@/components/trades/marketStyle";
 import MarketBadge from "@/components/trades/MarketBadge";
+import type { LongtermHolding, LongtermSell, CashTransaction } from "@/types/longterm";
 
 type Snapshot = {
   id: string;
@@ -37,6 +39,8 @@ type Trade = {
   id: string;
   market: string;
   status: string;
+  entry_price?: number;
+  remaining_quantity?: number;
 };
 
 const ASSET_COLORS = {
@@ -61,8 +65,12 @@ export default function Assets() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [closes, setCloses] = useState<TradeClose[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [holdings, setHoldings] = useState<LongtermHolding[]>([]);
+  const [ltSells, setLtSells] = useState<LongtermSell[]>([]);
+  const [cash, setCash] = useState<CashTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dlgOpen, setDlgOpen] = useState(false);
+  const [cashDlgOpen, setCashDlgOpen] = useState(false);
   const [editing, setEditing] = useState<Snapshot | undefined>();
   const [period, setPeriod] = useState<(typeof PERIODS)[number]["k"]>("3m");
   const [pnlGran, setPnlGran] = useState<"month" | "quarter" | "year" | "all">("month");
@@ -72,15 +80,21 @@ export default function Assets() {
 
   const load = async () => {
     setLoading(true);
-    const [s, c, t] = await Promise.all([
+    const [s, c, t, h, ls, ct] = await Promise.all([
       supabase.from("asset_snapshots").select("*").order("snapshot_date", { ascending: false }),
       supabase.from("trade_closes").select("id,close_date,realized_pnl,trade_id"),
-      supabase.from("trades").select("id,market,status"),
+      supabase.from("trades").select("id,market,status,entry_price,remaining_quantity"),
+      supabase.from("longterm_holdings").select("*"),
+      supabase.from("longterm_sells").select("*").order("sell_date", { ascending: true }),
+      supabase.from("cash_transactions").select("*").order("transaction_date", { ascending: false }).order("created_at", { ascending: false }),
     ]);
     if (s.error) toast.error(s.error.message);
     setSnapshots((s.data as Snapshot[]) || []);
     setCloses((c.data as TradeClose[]) || []);
     setTrades((t.data as Trade[]) || []);
+    setHoldings((h.data as LongtermHolding[]) || []);
+    setLtSells((ls.data as LongtermSell[]) || []);
+    setCash((ct.data as CashTransaction[]) || []);
     setLoading(false);
   };
 

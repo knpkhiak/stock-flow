@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Ideas from "./pages/Ideas";
 import Trades from "./pages/Trades";
 import Assets from "./pages/Assets";
+import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/ideas" element={<Ideas />} />
             <Route path="/trades" element={<Trades />} />
             <Route path="/assets" element={<Assets />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -22,6 +22,7 @@ export type Database = {
           longterm_balance: number
           memo: string | null
           snapshot_date: string
+          source: string
           total_balance: number
           trading_balance: number
         }
@@ -32,6 +33,7 @@ export type Database = {
           longterm_balance?: number
           memo?: string | null
           snapshot_date: string
+          source?: string
           total_balance?: number
           trading_balance?: number
         }
@@ -42,10 +44,183 @@ export type Database = {
           longterm_balance?: number
           memo?: string | null
           snapshot_date?: string
+          source?: string
           total_balance?: number
           trading_balance?: number
         }
         Relationships: []
+      }
+      cash_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          created_at: string
+          id: string
+          memo: string | null
+          transaction_date: string
+          type: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          created_at?: string
+          id?: string
+          memo?: string | null
+          transaction_date: string
+          type: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          created_at?: string
+          id?: string
+          memo?: string | null
+          transaction_date?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      kis_sync_log: {
+        Row: {
+          created_at: string
+          id: string
+          last_processed_order_id: string | null
+          last_sync_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_processed_order_id?: string | null
+          last_sync_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_processed_order_id?: string | null
+          last_sync_at?: string
+        }
+        Relationships: []
+      }
+      longterm_buys: {
+        Row: {
+          buy_date: string
+          buy_price: number
+          buy_quantity: number
+          created_at: string
+          holding_id: string
+          id: string
+          memo: string | null
+        }
+        Insert: {
+          buy_date: string
+          buy_price: number
+          buy_quantity: number
+          created_at?: string
+          holding_id: string
+          id?: string
+          memo?: string | null
+        }
+        Update: {
+          buy_date?: string
+          buy_price?: number
+          buy_quantity?: number
+          created_at?: string
+          holding_id?: string
+          id?: string
+          memo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "longterm_buys_holding_id_fkey"
+            columns: ["holding_id"]
+            isOneToOne: false
+            referencedRelation: "longterm_holdings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      longterm_holdings: {
+        Row: {
+          avg_entry_price: number
+          created_at: string
+          first_buy_date: string
+          id: string
+          market: string
+          memo: string | null
+          name: string
+          remaining_quantity: number
+          ticker: string
+          total_quantity: number
+        }
+        Insert: {
+          avg_entry_price?: number
+          created_at?: string
+          first_buy_date: string
+          id?: string
+          market: string
+          memo?: string | null
+          name: string
+          remaining_quantity?: number
+          ticker: string
+          total_quantity?: number
+        }
+        Update: {
+          avg_entry_price?: number
+          created_at?: string
+          first_buy_date?: string
+          id?: string
+          market?: string
+          memo?: string | null
+          name?: string
+          remaining_quantity?: number
+          ticker?: string
+          total_quantity?: number
+        }
+        Relationships: []
+      }
+      longterm_sells: {
+        Row: {
+          created_at: string
+          holding_id: string
+          id: string
+          memo: string | null
+          pnl_rate: number
+          realized_pnl: number
+          sell_date: string
+          sell_price: number
+          sell_quantity: number
+        }
+        Insert: {
+          created_at?: string
+          holding_id: string
+          id?: string
+          memo?: string | null
+          pnl_rate?: number
+          realized_pnl?: number
+          sell_date: string
+          sell_price: number
+          sell_quantity: number
+        }
+        Update: {
+          created_at?: string
+          holding_id?: string
+          id?: string
+          memo?: string | null
+          pnl_rate?: number
+          realized_pnl?: number
+          sell_date?: string
+          sell_price?: number
+          sell_quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "longterm_sells_holding_id_fkey"
+            columns: ["holding_id"]
+            isOneToOne: false
+            referencedRelation: "longterm_holdings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trade_closes: {
         Row: {
@@ -55,9 +230,11 @@ export type Database = {
           created_at: string
           holding_days: number
           id: string
+          kis_order_id: string | null
           memo: string | null
           pnl_rate: number
           realized_pnl: number
+          source: string
           trade_id: string
         }
         Insert: {
@@ -67,9 +244,11 @@ export type Database = {
           created_at?: string
           holding_days: number
           id?: string
+          kis_order_id?: string | null
           memo?: string | null
           pnl_rate: number
           realized_pnl: number
+          source?: string
           trade_id: string
         }
         Update: {
@@ -79,9 +258,11 @@ export type Database = {
           created_at?: string
           holding_days?: number
           id?: string
+          kis_order_id?: string | null
           memo?: string | null
           pnl_rate?: number
           realized_pnl?: number
+          source?: string
           trade_id?: string
         }
         Relationships: [
@@ -102,10 +283,12 @@ export type Database = {
           entry_price: number
           id: string
           idea_id: string | null
+          kis_order_id: string | null
           market: string
           memo: string | null
           name: string
           remaining_quantity: number
+          source: string
           status: string
           ticker: string
           total_quantity: number
@@ -118,10 +301,12 @@ export type Database = {
           entry_price: number
           id?: string
           idea_id?: string | null
+          kis_order_id?: string | null
           market: string
           memo?: string | null
           name: string
           remaining_quantity?: number
+          source?: string
           status?: string
           ticker: string
           total_quantity: number
@@ -134,10 +319,12 @@ export type Database = {
           entry_price?: number
           id?: string
           idea_id?: string | null
+          kis_order_id?: string | null
           market?: string
           memo?: string | null
           name?: string
           remaining_quantity?: number
+          source?: string
           status?: string
           ticker?: string
           total_quantity?: number
