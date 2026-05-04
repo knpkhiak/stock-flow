@@ -18,6 +18,7 @@ import ImportHoldingsDialog from "@/components/trades/ImportHoldingsDialog";
 import type { LongtermHolding, LongtermBuy, LongtermSell } from "@/types/longterm";
 import { Download } from "lucide-react";
 import { getInitialSetup, setInitialSetup, type InitialSetupStatus } from "@/lib/initialSetup";
+import { getKisEnv } from "@/pages/Settings";
 
 export interface Trade {
   id: string;
