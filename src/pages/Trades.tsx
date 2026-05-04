@@ -222,7 +222,7 @@ export default function Trades() {
   const [ltBuys, setLtBuys] = useState<LongtermBuy[]>([]);
   const [ltSells, setLtSells] = useState<LongtermSell[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openNew, setOpenNew] = useState(false);
+  
   const [closeTarget, setCloseTarget] = useState<Trade | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [newHoldingOpen, setNewHoldingOpen] = useState(false);
