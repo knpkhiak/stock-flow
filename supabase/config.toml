@@ -1,1 +1,4 @@
 project_id = "melskqgenmgdudwplxnt"
+
+[functions.kis-proxy]
+verify_jwt = false
