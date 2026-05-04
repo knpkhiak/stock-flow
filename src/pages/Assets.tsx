@@ -39,6 +39,8 @@ type Trade = {
   id: string;
   market: string;
   status: string;
+  entry_price?: number;
+  remaining_quantity?: number;
 };
 
 const ASSET_COLORS = {
