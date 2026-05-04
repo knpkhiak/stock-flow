@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, TrendingUp, Wallet, PiggyBank, Banknote } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, TrendingUp, Wallet, PiggyBank, Banknote, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SnapshotDialog from "@/components/assets/SnapshotDialog";
 import CashDialog from "@/components/cash/CashDialog";
+import MarketSessionBadge from "@/components/MarketSessionBadge";
+import { getKisEnv } from "@/pages/Settings";
 import { fmtKRW, fmtSignedKRW, fmtPct, fmtCompactKRW } from "@/lib/format";
 import {
   PieChart, Pie, Cell, Tooltip as RTooltip, ResponsiveContainer,
@@ -50,8 +52,9 @@ const ASSET_COLORS = {
   total: "hsl(210 40% 98%)",
 };
 
-const POS = "hsl(158 84% 39%)";
-const NEG = "hsl(0 72% 51%)";
+// Korean stock convention: 빨강=수익, 파랑=손실
+const POS = "hsl(var(--profit))";
+const NEG = "hsl(var(--loss))";
 
 const PERIODS = [
   { k: "1m", label: "1개월", days: 30 },
@@ -77,6 +80,9 @@ export default function Assets() {
   const [pnlMarket, setPnlMarket] = useState<string>("전체");
   const [page, setPage] = useState(1);
   const [lines, setLines] = useState({ total: true, trading: true, longterm: true, cash: true });
+  const [kisBalance, setKisBalance] = useState<{ holdings: number; cash: number; total: number } | null>(null);
+  const [kisSyncing, setKisSyncing] = useState(false);
+  const [lastKisSync, setLastKisSync] = useState<string | null>(localStorage.getItem("stock-flow-assets-kis-sync"));
 
   const load = async () => {
     setLoading(true);
@@ -98,7 +104,31 @@ export default function Assets() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  const syncKisBalance = async () => {
+    setKisSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("kis-proxy", {
+        body: { action: "balance", env: getKisEnv() },
+      });
+      if (error) throw new Error(error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const out2 = ((data as any)?.output2 ?? [])[0] ?? {};
+      const total = Number(out2.tot_evlu_amt ?? 0);
+      const cashBal = Number(out2.dnca_tot_amt ?? 0);
+      const holdings = Math.max(0, total - cashBal);
+      setKisBalance({ holdings, cash: cashBal, total });
+      const stamp = new Date().toISOString();
+      localStorage.setItem("stock-flow-assets-kis-sync", stamp);
+      setLastKisSync(stamp);
+      toast.success(`한투 동기화 완료: 총평가 ${fmtKRW(total)}`);
+    } catch (e: any) {
+      toast.error(`동기화 실패: ${e.message}`);
+    } finally {
+      setKisSyncing(false);
+    }
+  };
+
+  useEffect(() => { load(); syncKisBalance(); }, []);
 
   const latest = snapshots[0];
   const prevMonth = useMemo(() => {
@@ -207,14 +237,17 @@ export default function Assets() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">자산관리</h1>
           <p className="text-sm text-muted-foreground mt-1">계좌별 자산 배분과 잔고 추이를 관리하세요</p>
         </div>
-        <Button onClick={() => { setEditing(undefined); setDlgOpen(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> 오늘 자산 기록
-        </Button>
+        <div className="flex items-center gap-2">
+          <MarketSessionBadge lastSyncAt={lastKisSync} onRefresh={syncKisBalance} refreshing={kisSyncing} />
+          <Button onClick={() => { setEditing(undefined); setDlgOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> 오늘 자산 기록
+          </Button>
+        </div>
       </div>
 
       {/* Total summary */}
@@ -241,13 +274,42 @@ export default function Assets() {
 
       {/* Sub cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <SubBalanceCard
-          title="트레이딩 자산"
-          icon={<TrendingUp className="h-4 w-4" style={{ color: ASSET_COLORS.trading }} />}
-          value={latest?.trading_balance ?? null}
-          subtitle={`오픈 포지션 ${openCount}건`}
-          onUpdate={() => { setEditing(latest); setDlgOpen(true); }}
-        />
+        <Card className="glass-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <TrendingUp className="h-4 w-4" style={{ color: ASSET_COLORS.trading }} />
+              트레이딩 자산
+            </div>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              onClick={syncKisBalance}
+              disabled={kisSyncing}
+              title="한투 동기화"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${kisSyncing ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+          <div className="text-2xl font-bold num">
+            {kisBalance ? fmtKRW(kisBalance.total) : latest?.trading_balance != null ? fmtKRW(latest.trading_balance) : "—"}
+          </div>
+          {kisBalance ? (
+            <div className="mt-2 space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">보유종목</span>
+                <span className="num font-medium">{fmtKRW(kisBalance.holdings)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">예수금</span>
+                <span className="num font-medium">{fmtKRW(kisBalance.cash)}</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground pt-1">한투 총평가 자동 동기화</div>
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground mt-1">오픈 포지션 {openCount}건</div>
+          )}
+        </Card>
         <SubBalanceCard
           title="장기적립식 투자"
           icon={<PiggyBank className="h-4 w-4" style={{ color: ASSET_COLORS.longterm }} />}
