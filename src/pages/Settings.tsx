@@ -209,6 +209,94 @@ export default function SettingsPage() {
           </li>
         </ul>
       </Card>
+
+      {/* Danger Zone */}
+      <Card className="p-6 space-y-4 border-2 border-destructive/40 bg-destructive/5">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <h2 className="text-lg font-semibold text-destructive">데이터 초기화</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          베타 테스트 중 등록된 모든 매매 기록을 삭제합니다. 정식 운영 시작 전에만 사용하세요.
+          <br />
+          한투 API 키 / 계좌번호 / 투자 구분 설정은 보존됩니다.
+        </p>
+        <Button variant="destructive" onClick={() => setResetStep(1)}>
+          <Trash2 className="h-4 w-4 mr-1" /> 전체 데이터 초기화
+        </Button>
+      </Card>
+
+      {/* Step 1: confirm intent */}
+      <Dialog open={resetStep === 1} onOpenChange={(o) => !o && setResetStep(0)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" /> 정말로 모든 매매 기록을 삭제하시겠습니까?
+            </DialogTitle>
+            <DialogDescription>
+              매매기록, 분할 매수/청산, 장기투자, 자산 스냅샷, 현금 거래, 한투 동기화 로그가 모두 삭제됩니다.
+              이 작업은 되돌릴 수 없습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetStep(0)}>취소</Button>
+            <Button variant="destructive" onClick={() => setResetStep(2)}>다음</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Step 2: type RESET */}
+      <Dialog
+        open={resetStep === 2}
+        onOpenChange={(o) => {
+          if (!o) {
+            setResetStep(0);
+            setResetConfirm("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive">최종 확인</DialogTitle>
+            <DialogDescription>
+              계속하려면 아래 입력란에 <span className="font-mono font-semibold text-foreground">RESET</span> 을 입력하세요.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="reset-confirm" className="sr-only">RESET</Label>
+            <Input
+              id="reset-confirm"
+              value={resetConfirm}
+              onChange={(e) => setResetConfirm(e.target.value)}
+              placeholder="RESET"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetStep(0);
+                setResetConfirm("");
+              }}
+              disabled={resetting}
+            >
+              취소
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={resetConfirm !== "RESET" || resetting}
+              onClick={performReset}
+            >
+              {resetting ? (
+                <><RefreshCw className="h-4 w-4 mr-1 animate-spin" /> 삭제 중...</>
+              ) : (
+                <><Trash2 className="h-4 w-4 mr-1" /> 최종 삭제</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
