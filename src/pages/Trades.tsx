@@ -915,7 +915,7 @@ export default function Trades() {
         </TabsContent>
       </Tabs>
 
-      <NewTradeDialog open={openNew} onOpenChange={setOpenNew} onSaved={load} />
+      
       <CloseTradeDialog
         trade={closeTarget}
         closes={closeTarget ? (closesByTrade[closeTarget.id] || []) : []}
