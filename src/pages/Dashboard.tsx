@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fmtKRW, fmtSignedKRW, fmtPct, fmtCompactKRW } from "@/lib/format";
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip as RTooltip } from "recharts";
 import MarketBadge from "@/components/trades/MarketBadge";
+import MarketSessionBadge from "@/components/MarketSessionBadge";
 
 type Snapshot = {
   id: string;
@@ -23,8 +24,9 @@ const ASSET = {
   longterm: "hsl(217 91% 60%)",
   cash: "hsl(38 92% 50%)",
 };
-const POS = "hsl(158 84% 39%)";
-const NEG = "hsl(0 72% 51%)";
+// Korean stock convention: 빨강=수익, 파랑=손실
+const POS = "hsl(var(--profit))";
+const NEG = "hsl(var(--loss))";
 
 export default function Dashboard() {
   const nav = useNavigate();
