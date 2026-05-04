@@ -237,14 +237,17 @@ export default function Assets() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">자산관리</h1>
           <p className="text-sm text-muted-foreground mt-1">계좌별 자산 배분과 잔고 추이를 관리하세요</p>
         </div>
-        <Button onClick={() => { setEditing(undefined); setDlgOpen(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> 오늘 자산 기록
-        </Button>
+        <div className="flex items-center gap-2">
+          <MarketSessionBadge lastSyncAt={lastKisSync} onRefresh={syncKisBalance} refreshing={kisSyncing} />
+          <Button onClick={() => { setEditing(undefined); setDlgOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> 오늘 자산 기록
+          </Button>
+        </div>
       </div>
 
       {/* Total summary */}
@@ -271,13 +274,42 @@ export default function Assets() {
 
       {/* Sub cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <SubBalanceCard
-          title="트레이딩 자산"
-          icon={<TrendingUp className="h-4 w-4" style={{ color: ASSET_COLORS.trading }} />}
-          value={latest?.trading_balance ?? null}
-          subtitle={`오픈 포지션 ${openCount}건`}
-          onUpdate={() => { setEditing(latest); setDlgOpen(true); }}
-        />
+        <Card className="glass-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <TrendingUp className="h-4 w-4" style={{ color: ASSET_COLORS.trading }} />
+              트레이딩 자산
+            </div>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              onClick={syncKisBalance}
+              disabled={kisSyncing}
+              title="한투 동기화"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${kisSyncing ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+          <div className="text-2xl font-bold num">
+            {kisBalance ? fmtKRW(kisBalance.total) : latest?.trading_balance != null ? fmtKRW(latest.trading_balance) : "—"}
+          </div>
+          {kisBalance ? (
+            <div className="mt-2 space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">보유종목</span>
+                <span className="num font-medium">{fmtKRW(kisBalance.holdings)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">예수금</span>
+                <span className="num font-medium">{fmtKRW(kisBalance.cash)}</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground pt-1">한투 총평가 자동 동기화</div>
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground mt-1">오픈 포지션 {openCount}건</div>
+          )}
+        </Card>
         <SubBalanceCard
           title="장기적립식 투자"
           icon={<PiggyBank className="h-4 w-4" style={{ color: ASSET_COLORS.longterm }} />}
