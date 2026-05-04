@@ -243,13 +243,25 @@ export default function Trades() {
         {/* OPEN POSITIONS */}
         <TabsContent value="open" className="space-y-4">
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setImportOpen(true)}>
-              <Download className="h-4 w-4 mr-1" /> 한투 보유종목 가져오기
-            </Button>
             <Button onClick={() => setOpenNew(true)}>
               <Plus className="h-4 w-4 mr-1" /> 새 포지션 열기
             </Button>
           </div>
+
+          {/* Initial setup banner: only shown while pending AND no open positions */}
+          {!loading && setupStatus === "pending" && open.length === 0 && (
+            <Card className="glass-card p-5 space-y-3 border border-primary/20">
+              <div className="text-sm text-foreground">
+                STOCK-FLOW는 <span className="font-medium">첫 매매부터 자동으로 기록</span>합니다.
+                <br />
+                기존 보유종목을 가져오려면 아래 [초기 보유종목 등록]을 사용하세요.
+              </div>
+              <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}>
+                <Download className="h-4 w-4 mr-1" /> 초기 보유종목 등록
+              </Button>
+            </Card>
+          )}
+
           <Card className="glass-card">
             <Table>
               <TableHeader>
