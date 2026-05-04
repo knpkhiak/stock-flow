@@ -7,18 +7,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, ChevronDown, ChevronRight, RefreshCw, ArrowUpRight, ArrowDownRight, BarChart3 } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, RefreshCw, Download, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import NewTradeDialog from "@/components/trades/NewTradeDialog";
 import CloseTradeDialog from "@/components/trades/CloseTradeDialog";
-import MarketBadge from "@/components/trades/MarketBadge";
-import { marketColorVar } from "@/components/trades/marketStyle";
 import { NewHoldingDialog, AddBuyDialog, SellHoldingDialog } from "@/components/longterm/LongtermDialogs";
 import ImportHoldingsDialog from "@/components/trades/ImportHoldingsDialog";
+import MarketIcon from "@/components/MarketIcon";
+import MarketSessionBadge from "@/components/MarketSessionBadge";
 import type { LongtermHolding, LongtermBuy, LongtermSell } from "@/types/longterm";
-import { Download } from "lucide-react";
 import { getInitialSetup, setInitialSetup, type InitialSetupStatus } from "@/lib/initialSetup";
 import { getKisEnv } from "@/pages/Settings";
+import { fmtNum, fmtSignedNum, holdingClass, pnlClass, pnlSign } from "@/lib/pnl";
+import { getMarketSession, priceCaption } from "@/lib/marketSession";
+import { useKisPrices } from "@/hooks/useKisPrices";
 
 export interface Trade {
   id: string;
@@ -35,6 +37,19 @@ export interface Trade {
   memo: string | null;
   idea_id: string | null;
   created_at: string;
+  source?: string;
+}
+
+export interface TradeBuy {
+  id: string;
+  trade_id: string;
+  buy_date: string;
+  buy_price: number;
+  buy_quantity: number;
+  buy_amount: number;
+  cumulative_avg_price: number;
+  source: string;
+  created_at: string;
 }
 
 export interface TradeClose {
@@ -50,40 +65,62 @@ export interface TradeClose {
   created_at: string;
 }
 
-const fmtNum = (n: number) => new Intl.NumberFormat("ko-KR").format(n);
-const TARGET_DAYS = 21;
-
 const daysSince = (from: string) => {
   const a = new Date(from).getTime();
   const b = Date.now();
   return Math.max(0, Math.round((b - a) / 86400000));
 };
 
-const holdingClass = (d: number) => {
-  if (d <= 20) return "text-primary";
-  if (d <= 30) return "text-yellow-400";
-  return "text-destructive";
-};
-
 function StatusBadge({ status }: { status: string }) {
   if (status === "PARTIAL") {
     return (
-      <span className="inline-flex items-center rounded-md border border-yellow-500/30 bg-yellow-500/15 px-2 py-0.5 text-xs font-medium text-yellow-400">
-        부분청산
+      <span className="inline-flex items-center rounded-md border border-status-partial/30 bg-status-partial/15 px-2 py-0.5 text-[11px] font-medium text-status-partial">
+        PARTIAL CLOSE
+      </span>
+    );
+  }
+  if (status === "CLOSED") {
+    return (
+      <span className="inline-flex items-center rounded-md border border-status-closed/30 bg-status-closed/15 px-2 py-0.5 text-[11px] font-medium text-status-closed">
+        CLOSED
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-md border border-secondary/30 bg-secondary/15 px-2 py-0.5 text-xs font-medium text-secondary">
+    <span className="inline-flex items-center rounded-md border border-status-open/30 bg-status-open/15 px-2 py-0.5 text-[11px] font-medium text-status-open">
       OPEN
     </span>
   );
 }
 
+function TickerCell({ name, ticker, market }: { name: string; ticker: string; market: string }) {
+  return (
+    <div>
+      <div className="font-medium flex items-center gap-1.5">
+        <MarketIcon market={market} />
+        <span>{name}</span>
+        <span className="text-xs text-muted-foreground">({ticker})</span>
+      </div>
+    </div>
+  );
+}
+
+function PriceCell({ price, session }: { price: number | null; session: ReturnType<typeof getMarketSession> }) {
+  if (price === null) return <span className="text-muted-foreground text-xs">-</span>;
+  return (
+    <span>
+      <span className="tabular-nums">{fmtNum(price)}</span>
+      <span className="text-[10px] text-muted-foreground ml-1">{priceCaption(session)}</span>
+    </span>
+  );
+}
+
 type Granularity = "month" | "quarter" | "year" | "all";
+type MarketFilter = "all" | "국내" | "해외" | "암호화폐";
 
 export default function Trades() {
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [buys, setBuys] = useState<TradeBuy[]>([]);
   const [closes, setCloses] = useState<TradeClose[]>([]);
   const [holdings, setHoldings] = useState<LongtermHolding[]>([]);
   const [ltBuys, setLtBuys] = useState<LongtermBuy[]>([]);
@@ -98,6 +135,15 @@ export default function Trades() {
   const [sellTarget, setSellTarget] = useState<LongtermHolding | null>(null);
   const [setupStatus, setSetupStatus] = useState<InitialSetupStatus>(getInitialSetup());
   const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<string | null>(localStorage.getItem("stock-flow-last-sync"));
+
+  // history filter
+  const now = new Date();
+  const [granularity, setGranularity] = useState<Granularity>("month");
+  const [year, setYear] = useState<number>(now.getFullYear());
+  const [month, setMonth] = useState<number>(now.getMonth() + 1);
+  const [quarter, setQuarter] = useState<number>(Math.floor(now.getMonth() / 3) + 1);
+  const [marketFilter, setMarketFilter] = useState<MarketFilter>("all");
 
   useEffect(() => {
     const sync = () => setSetupStatus(getInitialSetup());
@@ -109,17 +155,18 @@ export default function Trades() {
     };
   }, []);
 
-  // history filter
-  const now = new Date();
-  const [granularity, setGranularity] = useState<Granularity>("month");
-  const [year, setYear] = useState<number>(now.getFullYear());
-  const [month, setMonth] = useState<number>(now.getMonth() + 1);
-  const [quarter, setQuarter] = useState<number>(Math.floor(now.getMonth() / 3) + 1);
-
   const load = async () => {
     setLoading(true);
-    const [{ data: t, error: e1 }, { data: c, error: e2 }, { data: h }, { data: lb }, { data: ls }] = await Promise.all([
+    const [
+      { data: t, error: e1 },
+      { data: b },
+      { data: c, error: e2 },
+      { data: h },
+      { data: lb },
+      { data: ls },
+    ] = await Promise.all([
       supabase.from("trades").select("*").order("created_at", { ascending: false }),
+      supabase.from("trade_buys").select("*").order("buy_date", { ascending: true }),
       supabase.from("trade_closes").select("*").order("close_date", { ascending: true }),
       supabase.from("longterm_holdings").select("*").order("created_at", { ascending: false }),
       supabase.from("longterm_buys").select("*").order("buy_date", { ascending: true }),
@@ -128,6 +175,7 @@ export default function Trades() {
     if (e1) toast.error(e1.message);
     if (e2) toast.error(e2.message);
     setTrades((t || []) as unknown as Trade[]);
+    setBuys((b || []) as unknown as TradeBuy[]);
     setCloses((c || []) as unknown as TradeClose[]);
     setHoldings((h || []) as unknown as LongtermHolding[]);
     setLtBuys((lb || []) as unknown as LongtermBuy[]);
@@ -144,23 +192,19 @@ export default function Trades() {
       if (error) throw new Error(error.message);
       if ((data as any)?.error) throw new Error((data as any).error);
       const r = data as {
-        considered: number;
-        inserted_buys: number;
-        inserted_closes: number;
-        new_trades: number;
-        closed_trades: number;
-        duplicates: number;
-        errors: string[];
+        inserted_buys: number; inserted_closes: number; new_trades: number;
+        closed_trades: number; duplicates: number; errors: string[];
       };
-      const summary = `매수 +${r.inserted_buys} / 청산 +${r.inserted_closes} / 신규 종목 ${r.new_trades} / 전량청산 ${r.closed_trades} (중복 ${r.duplicates})`;
+      const summary = `매수 +${r.inserted_buys} / 청산 +${r.inserted_closes} / 신규 ${r.new_trades} / 전량청산 ${r.closed_trades} (중복 ${r.duplicates})`;
       if (r.errors?.length) {
         toast.warning(`동기화 완료 (오류 ${r.errors.length}건): ${summary}`);
         console.warn("sync errors", r.errors);
       } else {
         toast.success(`동기화 완료: ${summary}`);
       }
-      localStorage.setItem("stock-flow-last-sync", new Date().toISOString());
-      // First successful sync also flips the initial-setup gate.
+      const stamp = new Date().toISOString();
+      localStorage.setItem("stock-flow-last-sync", stamp);
+      setLastSync(stamp);
       if (r.inserted_buys > 0 || r.inserted_closes > 0) {
         setInitialSetup("completed");
         setSetupStatus("completed");
@@ -175,6 +219,12 @@ export default function Trades() {
 
   useEffect(() => { load(); }, []);
 
+  const buysByTrade = useMemo(() => {
+    const m: Record<string, TradeBuy[]> = {};
+    for (const x of buys) (m[x.trade_id] ||= []).push(x);
+    return m;
+  }, [buys]);
+
   const closesByTrade = useMemo(() => {
     const m: Record<string, TradeClose[]> = {};
     for (const c of closes) (m[c.trade_id] ||= []).push(c);
@@ -182,21 +232,49 @@ export default function Trades() {
   }, [closes]);
 
   const open = trades.filter((t) => t.status === "OPEN" || t.status === "PARTIAL");
-  const closedTrades = trades.filter((t) => t.status === "CLOSED" || (closesByTrade[t.id]?.length ?? 0) > 0);
+  const closedTrades = trades.filter((t) => t.status === "CLOSED");
 
-  // Available year options (from oldest close_date)
+  // === current price hook ===
+  const session = getMarketSession();
+  const openTickers = useMemo(() => open.map((t) => t.ticker), [open]);
+  const ltTickers = useMemo(() => holdings.map((h) => h.ticker), [holdings]);
+  const tradePrices = useKisPrices(openTickers);
+  const ltPrices = useKisPrices(ltTickers);
+
+  // history filter — closed trades only
   const availableYears = useMemo(() => {
     if (closes.length === 0) return [now.getFullYear()];
-    const years = new Set<number>();
-    closes.forEach((c) => years.add(new Date(c.close_date).getFullYear()));
-    years.add(now.getFullYear());
-    return [...years].sort((a, b) => b - a);
+    const ys = new Set<number>();
+    closes.forEach((c) => ys.add(new Date(c.close_date).getFullYear()));
+    ys.add(now.getFullYear());
+    return [...ys].sort((a, b) => b - a);
   }, [closes, now]);
 
-  // Filter closes for the selected period
-  const filteredCloses = useMemo(() => {
-    return closes.filter((c) => {
-      const d = new Date(c.close_date);
+  // For history tab: only consider trades that are CLOSED.
+  // Filter by market + by "lastClose date in period".
+  const historyRows = useMemo(() => {
+    const rows = closedTrades
+      .filter((t) => marketFilter === "all" || t.market === marketFilter)
+      .map((t) => {
+        const tBuys = buysByTrade[t.id] || [];
+        const tCloses = (closesByTrade[t.id] || []).slice().sort((a, b) => a.close_date.localeCompare(b.close_date));
+        if (tCloses.length === 0) return null;
+        const lastClose = tCloses[tCloses.length - 1].close_date;
+        const totalRealized = tCloses.reduce((s, c) => s + Number(c.realized_pnl), 0);
+        const totalCloseQty = tCloses.reduce((s, c) => s + Number(c.close_quantity), 0);
+        const totalBuyAmt = tBuys.reduce((s, b) => s + Number(b.buy_amount), 0);
+        const avgRate = totalCloseQty > 0
+          ? tCloses.reduce((s, c) => s + Number(c.pnl_rate) * Number(c.close_quantity), 0) / totalCloseQty
+          : 0;
+        return { trade: t, tBuys, tCloses, lastClose, totalRealized, totalBuyAmt, totalCloseQty, avgRate };
+      })
+      .filter(Boolean) as Array<{
+        trade: Trade; tBuys: TradeBuy[]; tCloses: TradeClose[]; lastClose: string;
+        totalRealized: number; totalBuyAmt: number; totalCloseQty: number; avgRate: number;
+      }>;
+
+    return rows.filter(({ lastClose }) => {
+      const d = new Date(lastClose);
       if (granularity === "all") return true;
       if (d.getFullYear() !== year) return false;
       if (granularity === "year") return true;
@@ -204,73 +282,49 @@ export default function Trades() {
       if (granularity === "quarter") return Math.floor(d.getMonth() / 3) + 1 === quarter;
       return true;
     });
-  }, [closes, granularity, year, month, quarter]);
+  }, [closedTrades, buysByTrade, closesByTrade, granularity, year, month, quarter, marketFilter]);
+
+  // Summary across history rows
+  const summary = useMemo(() => {
+    const allCloseRecords = historyRows.flatMap((r) => r.tCloses);
+    const tradeCount = historyRows.length;
+    const splitCount = allCloseRecords.length;
+    const winCount = allCloseRecords.filter((c) => Number(c.realized_pnl) > 0).length;
+    const winRate = splitCount > 0 ? (winCount / splitCount) * 100 : 0;
+    const cumPnl = allCloseRecords.reduce((s, c) => s + Number(c.realized_pnl), 0);
+    const avgHold = splitCount > 0
+      ? Math.round(allCloseRecords.reduce((s, c) => s + Number(c.holding_days), 0) / splitCount)
+      : 0;
+    return { tradeCount, splitCount, winRate, cumPnl, avgHold };
+  }, [historyRows]);
 
   const periodLabel = useMemo(() => {
     if (granularity === "all") return "전체 기간";
-    if (granularity === "year") return `${year}년 기준`;
-    if (granularity === "quarter") return `${year}년 Q${quarter} 기준`;
-    return `${year}년 ${month}월 기준`;
+    if (granularity === "year") return `${year}년`;
+    if (granularity === "quarter") return `${year}년 Q${quarter}`;
+    return `${year}년 ${month}월`;
   }, [granularity, year, month, quarter]);
 
-  // Summary across filtered closes
-  const tradeCount = filteredCloses.length;
-  const winCount = filteredCloses.filter((c) => Number(c.realized_pnl) > 0).length;
-  const winRate = tradeCount > 0 ? (winCount / tradeCount) * 100 : 0;
-  const cumPnl = filteredCloses.reduce((s, c) => s + Number(c.realized_pnl), 0);
-  const avgHold = tradeCount > 0
-    ? Math.round(filteredCloses.reduce((s, c) => s + Number(c.holding_days), 0) / tradeCount)
-    : 0;
-
-  // Market distribution (absolute pnl share)
+  // Market distribution (by absolute realized pnl)
   const marketPnl = useMemo(() => {
-    const tradeMarket: Record<string, string> = {};
-    trades.forEach((t) => { tradeMarket[t.id] = t.market; });
     const m: Record<string, number> = { 국내: 0, 해외: 0, 암호화폐: 0 };
-    filteredCloses.forEach((c) => {
-      const mk = tradeMarket[c.trade_id] || "국내";
-      m[mk] = (m[mk] || 0) + Number(c.realized_pnl);
+    historyRows.forEach((r) => {
+      m[r.trade.market] = (m[r.trade.market] || 0) + r.totalRealized;
     });
     const totalAbs = Object.values(m).reduce((s, v) => s + Math.abs(v), 0);
     return { perMarket: m, totalAbs };
-  }, [filteredCloses, trades]);
-
-  // Group filtered closes by trade for history rows
-  const filteredByTrade = useMemo(() => {
-    const m: Record<string, TradeClose[]> = {};
-    filteredCloses.forEach((c) => (m[c.trade_id] ||= []).push(c));
-    return m;
-  }, [filteredCloses]);
-
-  const historyRows = useMemo(() => {
-    return Object.entries(filteredByTrade).map(([tradeId, cs]) => {
-      const t = trades.find((x) => x.id === tradeId);
-      if (!t) return null;
-      const totalQty = cs.reduce((s, c) => s + Number(c.close_quantity), 0);
-      const totalPnl = cs.reduce((s, c) => s + Number(c.realized_pnl), 0);
-      const avgRate = cs.reduce((s, c) => s + Number(c.pnl_rate) * Number(c.close_quantity), 0) / (totalQty || 1);
-      const totalHold = cs.reduce((s, c) => s + Number(c.holding_days), 0);
-      const dates = cs.map((c) => c.close_date).sort();
-      return {
-        trade: t,
-        closes: cs.sort((a, b) => a.close_date.localeCompare(b.close_date)),
-        totalQty, totalPnl, avgRate, totalHold,
-        firstClose: dates[0],
-        lastClose: dates[dates.length - 1],
-      };
-    }).filter(Boolean) as Array<{
-      trade: Trade; closes: TradeClose[]; totalQty: number; totalPnl: number;
-      avgRate: number; totalHold: number; firstClose: string; lastClose: string;
-    }>;
-  }, [filteredByTrade, trades]);
+  }, [historyRows]);
 
   const toggle = (id: string) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-semibold">매매기록</h1>
-        <p className="text-sm text-muted-foreground mt-1">오픈 포지션, 분할 청산, 매매 히스토리를 관리하세요</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">매매기록</h1>
+          <p className="text-sm text-muted-foreground mt-1">오픈 포지션, 분할 청산, 매매 히스토리를 관리하세요</p>
+        </div>
+        <MarketSessionBadge lastSyncAt={lastSync} onRefresh={load} refreshing={loading} />
       </div>
 
       <Tabs defaultValue="open">
@@ -284,15 +338,13 @@ export default function Trades() {
         <TabsContent value="open" className="space-y-4">
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={syncExecutions} disabled={syncing}>
-              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
-              체결내역 동기화
+              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} /> 체결내역 동기화
             </Button>
             <Button onClick={() => setOpenNew(true)}>
               <Plus className="h-4 w-4 mr-1" /> 새 포지션 열기
             </Button>
           </div>
 
-          {/* Initial setup banner: only shown while pending AND no open positions */}
           {!loading && setupStatus === "pending" && open.length === 0 && (
             <Card className="glass-card p-5 space-y-3 border border-primary/20">
               <div className="text-sm text-foreground">
@@ -312,75 +364,105 @@ export default function Trades() {
                 <TableRow>
                   <TableHead className="w-8" />
                   <TableHead>종목</TableHead>
-                  <TableHead>시장</TableHead>
-                  <TableHead>진입일</TableHead>
-                  <TableHead className="text-right">진입가</TableHead>
-                  <TableHead className="text-right">총수량</TableHead>
-                  <TableHead className="text-right">남은수량</TableHead>
-                  <TableHead className="text-right">보유일</TableHead>
-                  <TableHead>상태</TableHead>
-                  <TableHead className="text-right">액션</TableHead>
+                  <TableHead>진입</TableHead>
+                  <TableHead>진입가 / 현재가</TableHead>
+                  <TableHead className="text-right">보유수량</TableHead>
+                  <TableHead className="text-right">
+                    평가손익
+                    <div className="text-[10px] font-normal text-muted-foreground">(미실현)</div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">불러오는 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">불러오는 중...</TableCell></TableRow>
                 ) : open.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">오픈 포지션이 없습니다</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">오픈 포지션이 없습니다</TableCell></TableRow>
                 ) : open.map((t) => {
-                  const tc = closesByTrade[t.id] || [];
+                  const tBuys = buysByTrade[t.id] || [];
+                  const tCloses = closesByTrade[t.id] || [];
                   const days = daysSince(t.entry_date);
                   const isOpen = expanded[t.id];
+                  const cur = tradePrices[t.ticker]?.price ?? null;
+                  const avg = Number(t.entry_price);
+                  const remaining = Number(t.remaining_quantity);
+                  const total = Number(t.total_quantity);
+                  const changeRate = cur && avg > 0 ? ((cur - avg) / avg) * 100 : null;
+                  const unrealized = cur != null ? (cur - avg) * remaining : null;
+                  const unrealizedRate = cur && avg > 0 ? ((cur - avg) / avg) * 100 : null;
+                  const realizedSum = tCloses.reduce((s, c) => s + Number(c.realized_pnl), 0);
                   return (
                     <Fragment key={t.id}>
-                      <TableRow>
+                      <TableRow className="cursor-pointer" onClick={() => toggle(t.id)}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggle(t.id)}>
+                            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </Button>
+                        </TableCell>
+                        {/* 종목 */}
                         <TableCell>
-                          {tc.length > 0 ? (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggle(t.id)}>
-                              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </Button>
-                          ) : null}
+                          <TickerCell name={t.name} ticker={t.ticker} market={t.market} />
+                          <div className="mt-1"><StatusBadge status={t.status} /></div>
                         </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{t.name}</div>
-                          <div className="text-xs text-muted-foreground">{t.ticker}</div>
+                        {/* 진입 */}
+                        <TableCell className="text-sm">
+                          <div>{t.entry_date.replace(/-/g, ".")}</div>
+                          <div className={`text-xs font-medium ${holdingClass(days)} flex items-center gap-1`}>
+                            {days > 30 && <AlertTriangle className="h-3 w-3" />}
+                            D+{days}
+                          </div>
                         </TableCell>
-                        <TableCell><MarketBadge market={t.market} /></TableCell>
-                        <TableCell className="text-sm">{t.entry_date}</TableCell>
-                        <TableCell className="text-right tabular-nums">{fmtNum(Number(t.entry_price))}</TableCell>
-                        <TableCell className="text-right tabular-nums">{fmtNum(Number(t.total_quantity))}</TableCell>
-                        <TableCell className="text-right tabular-nums font-medium text-primary">
-                          {fmtNum(Number(t.remaining_quantity))}
+                        {/* 진입가 / 현재가 */}
+                        <TableCell className="text-sm">
+                          <div className="tabular-nums">
+                            {fmtNum(avg)} <span className="text-muted-foreground">→</span>{" "}
+                            {cur != null ? <PriceCell price={cur} session={session} /> : <span className="text-muted-foreground">-</span>}
+                          </div>
+                          {changeRate != null && (
+                            <div className={`text-xs tabular-nums ${pnlClass(changeRate)}`}>
+                              {changeRate >= 0 ? "↗" : "↘"} {pnlSign(changeRate)}{changeRate.toFixed(2)}%
+                            </div>
+                          )}
                         </TableCell>
-                        <TableCell className={`text-right tabular-nums font-medium ${holdingClass(days)}`}>
-                          D+{days}
-                        </TableCell>
-                        <TableCell><StatusBadge status={t.status} /></TableCell>
+                        {/* 보유수량 */}
                         <TableCell className="text-right">
-                          <Button size="sm" variant="outline" onClick={() => setCloseTarget(t)}>부분 청산</Button>
+                          <div className="font-medium tabular-nums">{fmtNum(remaining)}주</div>
+                          {remaining !== total && (
+                            <div className="text-xs text-muted-foreground tabular-nums">/ 최초 {fmtNum(total)}주</div>
+                          )}
+                        </TableCell>
+                        {/* 평가손익 (미실현) */}
+                        <TableCell className="text-right">
+                          {unrealized != null ? (
+                            <>
+                              <div className={`tabular-nums font-medium ${pnlClass(unrealized)}`}>
+                                {fmtSignedNum(unrealized)}
+                              </div>
+                              {unrealizedRate != null && (
+                                <div className={`text-xs tabular-nums ${pnlClass(unrealizedRate)}`}>
+                                  {pnlSign(unrealizedRate)}{unrealizedRate.toFixed(2)}%
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">시세 조회 중</span>
+                          )}
                         </TableCell>
                       </TableRow>
-                      {isOpen && tc.length > 0 && (
+                      {isOpen && (
                         <TableRow className="bg-muted/10">
                           <TableCell />
-                          <TableCell colSpan={9}>
-                            <div className="text-xs text-muted-foreground mb-2">분할 청산 내역</div>
-                            <div className="space-y-1">
-                              {tc.map((c, i) => {
-                                const cls = c.realized_pnl > 0 ? "text-primary" : c.realized_pnl < 0 ? "text-destructive" : "";
-                                return (
-                                  <div key={c.id} className="grid grid-cols-7 gap-2 text-sm tabular-nums">
-                                    <div className="text-muted-foreground">{i + 1}회</div>
-                                    <div>{c.close_date}</div>
-                                    <div className={holdingClass(c.holding_days)}>D+{c.holding_days}</div>
-                                    <div>가격 {fmtNum(Number(c.close_price))}</div>
-                                    <div>수량 {fmtNum(Number(c.close_quantity))}</div>
-                                    <div className={cls}>{c.realized_pnl >= 0 ? "+" : ""}{fmtNum(Math.round(Number(c.realized_pnl)))}</div>
-                                    <div className={cls}>{c.pnl_rate >= 0 ? "+" : ""}{Number(c.pnl_rate).toFixed(2)}%</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                          <TableCell colSpan={5}>
+                            <ExpandedSections
+                              tBuys={tBuys}
+                              tCloses={tCloses}
+                              avg={avg}
+                              currentPrice={cur}
+                              remaining={remaining}
+                              realizedSum={realizedSum}
+                              showCloseAction
+                              onCloseAction={() => setCloseTarget(t)}
+                            />
                           </TableCell>
                         </TableRow>
                       )}
@@ -394,7 +476,7 @@ export default function Trades() {
 
         {/* HISTORY */}
         <TabsContent value="history" className="space-y-4">
-          {/* Period filter */}
+          {/* Period & market filter */}
           <Card className="glass-card p-4 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               <ToggleGroup type="single" value={granularity} onValueChange={(v) => v && setGranularity(v as Granularity)} variant="outline" size="sm">
@@ -412,7 +494,6 @@ export default function Trades() {
                   </SelectContent>
                 </Select>
               )}
-
               {granularity === "month" && (
                 <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
                   <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
@@ -423,47 +504,59 @@ export default function Trades() {
                   </SelectContent>
                 </Select>
               )}
-
               {granularity === "quarter" && (
                 <Select value={String(quarter)} onValueChange={(v) => setQuarter(Number(v))}>
                   <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {[1,2,3,4].map((q) => <SelectItem key={q} value={String(q)}>Q{q}</SelectItem>)}
+                    {[1, 2, 3, 4].map((q) => <SelectItem key={q} value={String(q)}>Q{q}</SelectItem>)}
                   </SelectContent>
                 </Select>
               )}
+
+              <div className="ml-auto">
+                <ToggleGroup type="single" value={marketFilter} onValueChange={(v) => v && setMarketFilter(v as MarketFilter)} variant="outline" size="sm">
+                  <ToggleGroupItem value="all">전체</ToggleGroupItem>
+                  <ToggleGroupItem value="국내"><MarketIcon market="국내" /> 국내</ToggleGroupItem>
+                  <ToggleGroupItem value="해외"><MarketIcon market="해외" /> 해외</ToggleGroupItem>
+                  <ToggleGroupItem value="암호화폐"><MarketIcon market="암호화폐" /> 암호화폐</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
             </div>
           </Card>
 
           {/* Summary cards */}
           <div className="grid gap-4 md:grid-cols-4">
-            <SummaryCard label="매매 횟수" value={`${tradeCount}`} sub={periodLabel} />
-            <SummaryCard label="승률" value={`${winRate.toFixed(1)}%`} sub={periodLabel} />
+            <SummaryCard
+              label="매매 횟수"
+              value={`${summary.tradeCount}`}
+              sub={`종목 ${summary.tradeCount} / 분할청산 ${summary.splitCount}회`}
+            />
+            <SummaryCard label="승률" value={`${summary.winRate.toFixed(1)}%`} sub={`수익 청산 회차 기준`} />
             <SummaryCard
               label="누적 실현손익"
-              value={`${cumPnl >= 0 ? "+" : ""}${fmtNum(Math.round(cumPnl))}`}
-              valueClass={cumPnl > 0 ? "text-primary" : cumPnl < 0 ? "text-destructive" : ""}
+              value={fmtSignedNum(summary.cumPnl)}
+              valueClass={pnlClass(summary.cumPnl)}
               sub={periodLabel}
             />
             <SummaryCard
               label="평균 보유일"
-              value={`${avgHold}일`}
-              valueClass={holdingClass(avgHold)}
-              sub={`목표: 3주(21일) · ${periodLabel}`}
+              value={`${summary.avgHold}일`}
+              valueClass={holdingClass(summary.avgHold)}
+              sub={`목표: 3주(21일)`}
             />
           </div>
 
-          {/* Market distribution stack bar */}
+          {/* Market distribution */}
           <Card className="glass-card p-4">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-xs text-muted-foreground">시장별 손익 분포 (절대값 기준)</div>
+              <div className="text-xs text-muted-foreground">시장별 실현손익 분포 (절대값 기준)</div>
               <div className="text-xs text-muted-foreground">{periodLabel}</div>
             </div>
             {marketPnl.totalAbs === 0 ? (
               <div className="text-xs text-muted-foreground py-2">데이터가 없습니다</div>
             ) : (
               <TooltipProvider>
-                <div className="flex h-3 w-full overflow-hidden rounded-md">
+                <div className="flex h-3 w-full overflow-hidden rounded-md border border-border">
                   {(["국내", "해외", "암호화폐"] as const).map((mk) => {
                     const v = marketPnl.perMarket[mk] || 0;
                     const w = (Math.abs(v) / marketPnl.totalAbs) * 100;
@@ -472,21 +565,30 @@ export default function Trades() {
                       <Tooltip key={mk}>
                         <TooltipTrigger asChild>
                           <div
-                            style={{ width: `${w}%`, backgroundColor: `hsl(${marketColorVar(mk)})` }}
-                            className="h-full"
+                            style={{ width: `${w}%` }}
+                            className={`h-full ${v >= 0 ? "bg-profit/70" : "bg-loss/70"}`}
                           />
                         </TooltipTrigger>
                         <TooltipContent>
                           <div className="text-xs">
-                            <div className="font-medium">{mk}</div>
-                            <div className={v >= 0 ? "text-primary" : "text-destructive"}>
-                              {v >= 0 ? "+" : ""}{fmtNum(Math.round(v))}
-                            </div>
+                            <div className="font-medium flex items-center gap-1"><MarketIcon market={mk} /> {mk}</div>
+                            <div className={pnlClass(v)}>{fmtSignedNum(v)}</div>
                           </div>
                         </TooltipContent>
                       </Tooltip>
                     );
                   })}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+                  {(["국내", "해외", "암호화폐"] as const).map((mk) => (
+                    <div key={mk} className="flex items-center gap-1">
+                      <MarketIcon market={mk} />
+                      <span>{mk}</span>
+                      <span className={pnlClass(marketPnl.perMarket[mk] || 0)}>
+                        {fmtSignedNum(marketPnl.perMarket[mk] || 0)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </TooltipProvider>
             )}
@@ -499,69 +601,63 @@ export default function Trades() {
                 <TableRow>
                   <TableHead className="w-8" />
                   <TableHead>종목</TableHead>
-                  <TableHead>시장</TableHead>
-                  <TableHead>기간</TableHead>
-                  <TableHead className="text-right">청산수량</TableHead>
-                  <TableHead className="text-right">총 보유일</TableHead>
-                  <TableHead className="text-right">실현손익</TableHead>
-                  <TableHead className="text-right">평균 수익률</TableHead>
+                  <TableHead>거래 기간</TableHead>
+                  <TableHead className="text-right">총 수량 / 분할 횟수</TableHead>
+                  <TableHead className="text-right">총 실현손익</TableHead>
+                  <TableHead className="text-right">평균 손익률</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">불러오는 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">불러오는 중...</TableCell></TableRow>
                 ) : historyRows.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">해당 기간에 매매 기록이 없습니다</TableCell></TableRow>
-                ) : historyRows.map(({ trade: t, closes: cs, totalQty, totalPnl, avgRate, totalHold, firstClose, lastClose }) => {
-                  const cls = totalPnl > 0 ? "text-primary" : totalPnl < 0 ? "text-destructive" : "";
-                  const isOpen = expanded[t.id];
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">해당 기간에 매매 기록이 없습니다</TableCell></TableRow>
+                ) : historyRows.map(({ trade: t, tBuys, tCloses, lastClose, totalRealized, totalBuyAmt, totalCloseQty, avgRate }) => {
+                  const isOpen = expanded[`h-${t.id}`];
+                  const periodDays = daysSince(t.entry_date) - daysSince(lastClose);
                   return (
-                    <Fragment key={t.id}>
-                      <TableRow>
-                        <TableCell>
-                          {cs.length > 1 ? (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggle(t.id)}>
-                              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </Button>
-                          ) : null}
+                    <Fragment key={`h-${t.id}`}>
+                      <TableRow className="cursor-pointer" onClick={() => toggle(`h-${t.id}`)}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggle(`h-${t.id}`)}>
+                            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </Button>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">{t.name}</div>
-                          <div className="text-xs text-muted-foreground">{t.ticker}</div>
+                          <TickerCell name={t.name} ticker={t.ticker} market={t.market} />
+                          <div className="mt-1"><StatusBadge status="CLOSED" /></div>
                         </TableCell>
-                        <TableCell><MarketBadge market={t.market} /></TableCell>
                         <TableCell className="text-sm">
-                          <div>{t.entry_date} ~ {lastClose}</div>
-                          {cs.length > 1 && <div className="text-xs text-muted-foreground">분할 {cs.length}회 (첫 청산 {firstClose})</div>}
+                          <div>{t.entry_date.replace(/-/g, ".")} ~ {lastClose.replace(/-/g, ".")}</div>
+                          <div className="text-xs text-muted-foreground">총 {periodDays}일</div>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{fmtNum(totalQty)}</TableCell>
-                        <TableCell className={`text-right tabular-nums font-medium ${holdingClass(Math.round(totalHold / cs.length))}`}>
-                          {totalHold}일
+                        <TableCell className="text-right">
+                          <div className="tabular-nums">총 {fmtNum(totalCloseQty)}주</div>
+                          <div className="text-xs text-muted-foreground tabular-nums">매수 {tBuys.length}회 / 청산 {tCloses.length}회</div>
                         </TableCell>
-                        <TableCell className={`text-right tabular-nums ${cls}`}>{totalPnl >= 0 ? "+" : ""}{fmtNum(Math.round(totalPnl))}</TableCell>
-                        <TableCell className={`text-right tabular-nums ${cls}`}>{avgRate >= 0 ? "+" : ""}{avgRate.toFixed(2)}%</TableCell>
+                        <TableCell className="text-right">
+                          <div className={`tabular-nums font-medium ${pnlClass(totalRealized)}`}>
+                            {fmtSignedNum(totalRealized)}
+                          </div>
+                          <div className="text-xs text-muted-foreground tabular-nums">매수 총액 {fmtNum(Math.round(totalBuyAmt))}</div>
+                        </TableCell>
+                        <TableCell className={`text-right tabular-nums font-medium ${pnlClass(avgRate)}`}>
+                          {pnlSign(avgRate)}{avgRate.toFixed(2)}%
+                        </TableCell>
                       </TableRow>
-                      {isOpen && cs.length > 1 && (
+                      {isOpen && (
                         <TableRow className="bg-muted/10">
                           <TableCell />
-                          <TableCell colSpan={7}>
-                            <div className="text-xs text-muted-foreground mb-2">분할 청산 내역</div>
-                            <div className="space-y-1">
-                              {cs.map((c, i) => {
-                                const ccls = c.realized_pnl > 0 ? "text-primary" : c.realized_pnl < 0 ? "text-destructive" : "";
-                                return (
-                                  <div key={c.id} className="grid grid-cols-7 gap-2 text-sm tabular-nums">
-                                    <div className="text-muted-foreground">{i + 1}회</div>
-                                    <div>{c.close_date}</div>
-                                    <div className={holdingClass(c.holding_days)}>D+{c.holding_days}</div>
-                                    <div>가격 {fmtNum(Number(c.close_price))}</div>
-                                    <div>수량 {fmtNum(Number(c.close_quantity))}</div>
-                                    <div className={ccls}>{c.realized_pnl >= 0 ? "+" : ""}{fmtNum(Math.round(Number(c.realized_pnl)))}</div>
-                                    <div className={ccls}>{c.pnl_rate >= 0 ? "+" : ""}{Number(c.pnl_rate).toFixed(2)}%</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                          <TableCell colSpan={5}>
+                            <ExpandedSections
+                              tBuys={tBuys}
+                              tCloses={tCloses}
+                              avg={Number(t.entry_price)}
+                              currentPrice={null}
+                              remaining={0}
+                              realizedSum={totalRealized}
+                              hideEstimateBox
+                            />
                           </TableCell>
                         </TableRow>
                       )}
@@ -590,83 +686,92 @@ export default function Trades() {
                 <TableRow>
                   <TableHead className="w-8" />
                   <TableHead>종목</TableHead>
-                  <TableHead>시장</TableHead>
-                  <TableHead className="text-right">평균매입가</TableHead>
-                  <TableHead className="text-right">총 매수</TableHead>
-                  <TableHead className="text-right">남은수량</TableHead>
-                  <TableHead>첫 매수일</TableHead>
-                  <TableHead className="text-right">매수횟수</TableHead>
-                  <TableHead className="text-right">액션</TableHead>
+                  <TableHead>평균매입가 / 현재가</TableHead>
+                  <TableHead className="text-right">보유수량</TableHead>
+                  <TableHead className="text-right">
+                    평가손익
+                    <div className="text-[10px] font-normal text-muted-foreground">(미실현)</div>
+                  </TableHead>
+                  <TableHead className="text-right">누적 실현</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">불러오는 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">불러오는 중...</TableCell></TableRow>
                 ) : holdings.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">장기투자 종목을 추가해주세요</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">장기투자 종목을 추가해주세요</TableCell></TableRow>
                 ) : holdings.map((h) => {
-                  const buys = ltBuys.filter(b => b.holding_id === h.id);
-                  const sells = ltSells.filter(s => s.holding_id === h.id);
+                  const hBuys = ltBuys.filter((b) => b.holding_id === h.id);
+                  const hSells = ltSells.filter((s) => s.holding_id === h.id);
                   const isOpen = expanded[`lt-${h.id}`];
+                  const avg = Number(h.avg_entry_price);
+                  const remaining = Number(h.remaining_quantity);
+                  const cur = ltPrices[h.ticker]?.price ?? null;
+                  const changeRate = cur && avg > 0 ? ((cur - avg) / avg) * 100 : null;
+                  const unrealized = cur != null ? (cur - avg) * remaining : null;
+                  const unrealizedRate = changeRate;
+                  const realizedSum = hSells.reduce((s, x) => s + Number(x.realized_pnl), 0);
                   return (
                     <Fragment key={h.id}>
-                      <TableRow>
-                        <TableCell>
+                      <TableRow className="cursor-pointer" onClick={() => toggle(`lt-${h.id}`)}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggle(`lt-${h.id}`)}>
                             {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </Button>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">{h.name}</div>
-                          <div className="text-xs text-muted-foreground">{h.ticker}</div>
+                          <TickerCell name={h.name} ticker={h.ticker} market={h.market} />
                         </TableCell>
-                        <TableCell><MarketBadge market={h.market} /></TableCell>
-                        <TableCell className="text-right tabular-nums">{fmtNum(Number(h.avg_entry_price))}</TableCell>
-                        <TableCell className="text-right tabular-nums">{fmtNum(Number(h.total_quantity))}</TableCell>
-                        <TableCell className="text-right tabular-nums font-medium text-secondary">{fmtNum(Number(h.remaining_quantity))}</TableCell>
-                        <TableCell className="text-sm">{h.first_buy_date}</TableCell>
-                        <TableCell className="text-right tabular-nums">{buys.length}</TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button size="sm" variant="outline" onClick={() => setBuyTarget(h)}>
-                            <ArrowUpRight className="h-3 w-3 mr-1" />추가매수
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => setSellTarget(h)} disabled={h.remaining_quantity <= 0}>
-                            <ArrowDownRight className="h-3 w-3 mr-1" />매도
-                          </Button>
+                        <TableCell className="text-sm">
+                          <div className="tabular-nums">
+                            {fmtNum(avg)} <span className="text-muted-foreground">→</span>{" "}
+                            {cur != null ? <PriceCell price={cur} session={session} /> : <span className="text-muted-foreground">-</span>}
+                          </div>
+                          {changeRate != null && (
+                            <div className={`text-xs tabular-nums ${pnlClass(changeRate)}`}>
+                              {changeRate >= 0 ? "↗" : "↘"} {pnlSign(changeRate)}{changeRate.toFixed(2)}%
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="font-medium tabular-nums">{fmtNum(remaining)}주</div>
+                          <div className="text-xs text-muted-foreground tabular-nums">매수 {hBuys.length}회</div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {unrealized != null ? (
+                            <>
+                              <div className={`tabular-nums font-medium ${pnlClass(unrealized)}`}>
+                                {fmtSignedNum(unrealized)}
+                              </div>
+                              {unrealizedRate != null && (
+                                <div className={`text-xs tabular-nums ${pnlClass(unrealizedRate)}`}>
+                                  {pnlSign(unrealizedRate)}{unrealizedRate.toFixed(2)}%
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">시세 조회 중</span>
+                          )}
+                        </TableCell>
+                        <TableCell className={`text-right tabular-nums font-medium ${pnlClass(realizedSum)}`}>
+                          {realizedSum === 0 ? "-" : fmtSignedNum(realizedSum)}
                         </TableCell>
                       </TableRow>
-                      {isOpen && (buys.length > 0 || sells.length > 0) && (
+                      {isOpen && (
                         <TableRow className="bg-muted/10">
                           <TableCell />
-                          <TableCell colSpan={8}>
-                            <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                              <BarChart3 className="h-3 w-3" /> 매수/매도 히스토리
-                            </div>
-                            <div className="space-y-1">
-                              {buys.map((b, i) => (
-                                <div key={b.id} className="grid grid-cols-5 gap-2 text-sm tabular-nums">
-                                  <div className="text-secondary">매수 {i + 1}</div>
-                                  <div>{b.buy_date}</div>
-                                  <div>가격 {fmtNum(Number(b.buy_price))}</div>
-                                  <div>수량 {fmtNum(Number(b.buy_quantity))}</div>
-                                  <div className="text-muted-foreground truncate">{b.memo || ""}</div>
-                                </div>
-                              ))}
-                              {sells.map((s, i) => {
-                                const cls = s.realized_pnl > 0 ? "text-primary" : s.realized_pnl < 0 ? "text-destructive" : "";
-                                return (
-                                  <div key={s.id} className="grid grid-cols-5 gap-2 text-sm tabular-nums">
-                                    <div className="text-destructive">매도 {i + 1}</div>
-                                    <div>{s.sell_date}</div>
-                                    <div>가격 {fmtNum(Number(s.sell_price))}</div>
-                                    <div>수량 {fmtNum(Number(s.sell_quantity))}</div>
-                                    <div className={cls}>
-                                      {s.realized_pnl >= 0 ? "+" : ""}{fmtNum(Math.round(Number(s.realized_pnl)))} ({Number(s.pnl_rate).toFixed(2)}%)
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                          <TableCell colSpan={5}>
+                            <LongtermExpanded
+                              hBuys={hBuys}
+                              hSells={hSells}
+                              avg={avg}
+                              currentPrice={cur}
+                              remaining={remaining}
+                              realizedSum={realizedSum}
+                              onAddBuy={() => setBuyTarget(h)}
+                              onSell={() => setSellTarget(h)}
+                              canSell={remaining > 0}
+                            />
                           </TableCell>
                         </TableRow>
                       )}
@@ -697,7 +802,7 @@ export default function Trades() {
           setSetupStatus("completed");
           load();
         }}
-        existingTickers={trades.filter(t => t.status !== "CLOSED").map(t => t.ticker)}
+        existingTickers={trades.filter((t) => t.status !== "CLOSED").map((t) => t.ticker)}
       />
     </div>
   );
@@ -710,5 +815,301 @@ function SummaryCard({ label, value, valueClass = "", sub }: { label: string; va
       <div className={`text-2xl font-semibold tabular-nums mt-1 ${valueClass}`}>{value}</div>
       {sub && <div className="text-[11px] text-muted-foreground mt-1">{sub}</div>}
     </Card>
+  );
+}
+
+/* ============ Expanded sections (E-1, E-2, E-3) ============ */
+
+interface ExpandedProps {
+  tBuys: TradeBuy[];
+  tCloses: TradeClose[];
+  avg: number;
+  currentPrice: number | null;
+  remaining: number;
+  realizedSum: number;
+  hideEstimateBox?: boolean;
+  showCloseAction?: boolean;
+  onCloseAction?: () => void;
+}
+
+function ExpandedSections({
+  tBuys, tCloses, avg, currentPrice, remaining, realizedSum,
+  hideEstimateBox, showCloseAction, onCloseAction,
+}: ExpandedProps) {
+  const sortedBuys = [...tBuys].sort((a, b) => a.buy_date.localeCompare(b.buy_date));
+  const sortedCloses = [...tCloses].sort((a, b) => a.close_date.localeCompare(b.close_date));
+  const totalBuyQty = sortedBuys.reduce((s, b) => s + Number(b.buy_quantity), 0);
+  const totalBuyAmt = sortedBuys.reduce((s, b) => s + Number(b.buy_amount), 0);
+
+  const unrealized = currentPrice != null && remaining > 0 ? (currentPrice - avg) * remaining : null;
+  const estimatedTotal = unrealized != null ? realizedSum + unrealized : null;
+
+  return (
+    <div className="space-y-4 py-2">
+      {/* E-1 : 추정 청산 박스 */}
+      {!hideEstimateBox && sortedCloses.length > 0 && (
+        <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-1 text-sm">
+          <div className="text-xs text-muted-foreground">📊 이 포지션 누적 실현 / 미실현</div>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 tabular-nums">
+            <div>
+              누적 실현: <span className={pnlClass(realizedSum)}>{fmtSignedNum(realizedSum)}</span>
+              <span className="text-muted-foreground text-xs ml-1">(청산 {sortedCloses.length}회)</span>
+            </div>
+            {unrealized != null && (
+              <div>
+                남은 {fmtNum(remaining)}주 미실현:{" "}
+                <span className={pnlClass(unrealized)}>{fmtSignedNum(unrealized)}</span>
+              </div>
+            )}
+          </div>
+          {estimatedTotal != null && (
+            <div className="border-t border-border pt-1 mt-1">
+              <span className="text-muted-foreground">예상 총 손익: </span>
+              <span className={`font-medium tabular-nums ${pnlClass(estimatedTotal)}`}>
+                {fmtSignedNum(estimatedTotal)}
+              </span>
+            </div>
+          )}
+          <div className="text-[11px] text-muted-foreground">※ 미실현 부분은 시장 변동에 따라 달라집니다</div>
+        </div>
+      )}
+
+      {/* E-2 : 매수 히스토리 */}
+      <div>
+        <div className="text-xs text-muted-foreground mb-2 flex items-center justify-between">
+          <span>매수 히스토리</span>
+          {showCloseAction && (
+            <Button size="sm" variant="outline" onClick={onCloseAction}>부분 청산</Button>
+          )}
+        </div>
+        <div className="rounded border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30 text-xs text-muted-foreground">
+              <tr>
+                <th className="text-left p-2">회차</th>
+                <th className="text-left p-2">매수일</th>
+                <th className="text-right p-2">매수가</th>
+                <th className="text-right p-2">수량</th>
+                <th className="text-right p-2">매수금액</th>
+                <th className="text-right p-2">누적 평균단가</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedBuys.length === 0 ? (
+                <tr><td colSpan={6} className="p-2 text-center text-muted-foreground">매수 기록이 없습니다</td></tr>
+              ) : sortedBuys.map((b, i) => (
+                <tr key={b.id} className="border-t border-border tabular-nums">
+                  <td className="p-2">{i + 1}차</td>
+                  <td className="p-2">{b.buy_date.replace(/-/g, ".")}</td>
+                  <td className="p-2 text-right">{fmtNum(Number(b.buy_price))}</td>
+                  <td className="p-2 text-right">{fmtNum(Number(b.buy_quantity))}주</td>
+                  <td className="p-2 text-right">{fmtNum(Math.round(Number(b.buy_amount)))}</td>
+                  <td className="p-2 text-right">
+                    {fmtNum(Math.round(Number(b.cumulative_avg_price)))}
+                    {i === sortedBuys.length - 1 && (
+                      <span className="text-[10px] text-muted-foreground ml-1">(현재)</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {sortedBuys.length > 0 && (
+                <tr className="border-t border-border bg-muted/20 font-medium tabular-nums">
+                  <td className="p-2">합계</td>
+                  <td className="p-2" />
+                  <td className="p-2" />
+                  <td className="p-2 text-right">{fmtNum(totalBuyQty)}주</td>
+                  <td className="p-2 text-right">{fmtNum(Math.round(totalBuyAmt))}</td>
+                  <td className="p-2" />
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* E-3 : 청산 히스토리 */}
+      <div>
+        <div className="text-xs text-muted-foreground mb-2">부분 청산 히스토리</div>
+        {sortedCloses.length === 0 ? (
+          <div className="text-xs text-muted-foreground p-2">아직 청산된 부분이 없습니다</div>
+        ) : (
+          <div className="rounded border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30 text-xs text-muted-foreground">
+                <tr>
+                  <th className="text-left p-2">회차</th>
+                  <th className="text-left p-2">청산일</th>
+                  <th className="text-left p-2">보유일</th>
+                  <th className="text-right p-2">청산가</th>
+                  <th className="text-right p-2">수량</th>
+                  <th className="text-right p-2">청산금액</th>
+                  <th className="text-right p-2">실현손익</th>
+                  <th className="text-right p-2">손익률</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedCloses.map((c, i) => {
+                  const amt = Number(c.close_price) * Number(c.close_quantity);
+                  return (
+                    <tr key={c.id} className="border-t border-border tabular-nums">
+                      <td className="p-2">{i + 1}차</td>
+                      <td className="p-2">{c.close_date.replace(/-/g, ".")}</td>
+                      <td className={`p-2 ${holdingClass(c.holding_days)}`}>D+{c.holding_days}</td>
+                      <td className="p-2 text-right">{fmtNum(Number(c.close_price))}</td>
+                      <td className="p-2 text-right">{fmtNum(Number(c.close_quantity))}주</td>
+                      <td className="p-2 text-right">{fmtNum(Math.round(amt))}</td>
+                      <td className={`p-2 text-right ${pnlClass(Number(c.realized_pnl))}`}>
+                        {fmtSignedNum(Number(c.realized_pnl))}
+                      </td>
+                      <td className={`p-2 text-right ${pnlClass(Number(c.pnl_rate))}`}>
+                        {pnlSign(Number(c.pnl_rate))}{Number(c.pnl_rate).toFixed(2)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {!hideEstimateBox && (
+        <div className="text-[11px] text-muted-foreground">
+          ※ 위쪽 평가손익은 현재 보유 {fmtNum(remaining)}주에 대한 미실현 손익,
+          청산 히스토리는 이미 실현한 부분의 손익입니다. 별도 계산됩니다.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============ Longterm expanded ============ */
+
+function LongtermExpanded({
+  hBuys, hSells, avg, currentPrice, remaining, realizedSum, onAddBuy, onSell, canSell,
+}: {
+  hBuys: LongtermBuy[]; hSells: LongtermSell[]; avg: number;
+  currentPrice: number | null; remaining: number; realizedSum: number;
+  onAddBuy: () => void; onSell: () => void; canSell: boolean;
+}) {
+  const sortedBuys = [...hBuys].sort((a, b) => a.buy_date.localeCompare(b.buy_date));
+  const sortedSells = [...hSells].sort((a, b) => a.sell_date.localeCompare(b.sell_date));
+  const totalBuyQty = sortedBuys.reduce((s, b) => s + Number(b.buy_quantity), 0);
+  const totalBuyAmt = sortedBuys.reduce((s, b) => s + Number(b.buy_price) * Number(b.buy_quantity), 0);
+  const unrealized = currentPrice != null && remaining > 0 ? (currentPrice - avg) * remaining : null;
+  const estimatedTotal = unrealized != null ? realizedSum + unrealized : null;
+
+  return (
+    <div className="space-y-4 py-2">
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={onAddBuy}>추가매수</Button>
+        <Button size="sm" variant="outline" onClick={onSell} disabled={!canSell}>매도</Button>
+      </div>
+
+      {sortedSells.length > 0 && (
+        <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-1 text-sm">
+          <div className="text-xs text-muted-foreground">📊 누적 실현 / 미실현</div>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 tabular-nums">
+            <div>
+              누적 실현: <span className={pnlClass(realizedSum)}>{fmtSignedNum(realizedSum)}</span>
+              <span className="text-muted-foreground text-xs ml-1">(매도 {sortedSells.length}회)</span>
+            </div>
+            {unrealized != null && (
+              <div>
+                남은 {fmtNum(remaining)}주 미실현:{" "}
+                <span className={pnlClass(unrealized)}>{fmtSignedNum(unrealized)}</span>
+              </div>
+            )}
+          </div>
+          {estimatedTotal != null && (
+            <div className="border-t border-border pt-1 mt-1">
+              <span className="text-muted-foreground">예상 총 손익: </span>
+              <span className={`font-medium tabular-nums ${pnlClass(estimatedTotal)}`}>
+                {fmtSignedNum(estimatedTotal)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div>
+        <div className="text-xs text-muted-foreground mb-2">매수 히스토리</div>
+        <div className="rounded border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30 text-xs text-muted-foreground">
+              <tr>
+                <th className="text-left p-2">회차</th>
+                <th className="text-left p-2">매수일</th>
+                <th className="text-right p-2">매수가</th>
+                <th className="text-right p-2">수량</th>
+                <th className="text-right p-2">매수금액</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedBuys.length === 0 ? (
+                <tr><td colSpan={5} className="p-2 text-center text-muted-foreground">매수 기록이 없습니다</td></tr>
+              ) : sortedBuys.map((b, i) => (
+                <tr key={b.id} className="border-t border-border tabular-nums">
+                  <td className="p-2">{i + 1}차</td>
+                  <td className="p-2">{b.buy_date.replace(/-/g, ".")}</td>
+                  <td className="p-2 text-right">{fmtNum(Number(b.buy_price))}</td>
+                  <td className="p-2 text-right">{fmtNum(Number(b.buy_quantity))}주</td>
+                  <td className="p-2 text-right">
+                    {fmtNum(Math.round(Number(b.buy_price) * Number(b.buy_quantity)))}
+                  </td>
+                </tr>
+              ))}
+              {sortedBuys.length > 0 && (
+                <tr className="border-t border-border bg-muted/20 font-medium tabular-nums">
+                  <td className="p-2">합계</td>
+                  <td className="p-2" />
+                  <td className="p-2" />
+                  <td className="p-2 text-right">{fmtNum(totalBuyQty)}주</td>
+                  <td className="p-2 text-right">{fmtNum(Math.round(totalBuyAmt))}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-xs text-muted-foreground mb-2">매도 히스토리</div>
+        {sortedSells.length === 0 ? (
+          <div className="text-xs text-muted-foreground p-2">아직 매도된 부분이 없습니다</div>
+        ) : (
+          <div className="rounded border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30 text-xs text-muted-foreground">
+                <tr>
+                  <th className="text-left p-2">회차</th>
+                  <th className="text-left p-2">매도일</th>
+                  <th className="text-right p-2">매도가</th>
+                  <th className="text-right p-2">수량</th>
+                  <th className="text-right p-2">실현손익</th>
+                  <th className="text-right p-2">손익률</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedSells.map((s, i) => (
+                  <tr key={s.id} className="border-t border-border tabular-nums">
+                    <td className="p-2">{i + 1}차</td>
+                    <td className="p-2">{s.sell_date.replace(/-/g, ".")}</td>
+                    <td className="p-2 text-right">{fmtNum(Number(s.sell_price))}</td>
+                    <td className="p-2 text-right">{fmtNum(Number(s.sell_quantity))}주</td>
+                    <td className={`p-2 text-right ${pnlClass(Number(s.realized_pnl))}`}>
+                      {fmtSignedNum(Number(s.realized_pnl))}
+                    </td>
+                    <td className={`p-2 text-right ${pnlClass(Number(s.pnl_rate))}`}>
+                      {pnlSign(Number(s.pnl_rate))}{Number(s.pnl_rate).toFixed(2)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
