@@ -128,7 +128,7 @@ export default function Assets() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); syncKisBalance(); }, []);
 
   const latest = snapshots[0];
   const prevMonth = useMemo(() => {
