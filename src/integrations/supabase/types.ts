@@ -101,6 +101,27 @@ export type Database = {
         }
         Relationships: []
       }
+      kis_token_cache: {
+        Row: {
+          access_token: string
+          env: string
+          expires_at: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          env: string
+          expires_at: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          env?: string
+          expires_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       longterm_buys: {
         Row: {
           buy_date: string
