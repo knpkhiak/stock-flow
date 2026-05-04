@@ -454,6 +454,15 @@ Deno.serve(async (req) => {
     } else if (action === "sync") {
       const lookback = Math.max(1, Math.min(90, Number(body.lookback_days ?? 30)));
       payload = await runSync(env, lookback);
+    } else if (action === "price") {
+      const ticker = String(body.ticker ?? "").trim();
+      if (!ticker) {
+        return new Response(JSON.stringify({ error: "ticker is required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      payload = await inquirePrice(env, ticker);
     } else {
       return new Response(JSON.stringify({ error: `unknown action: ${action}` }), {
         status: 400,
