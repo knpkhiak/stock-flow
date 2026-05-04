@@ -38,6 +38,7 @@ export interface Trade {
   idea_id: string | null;
   created_at: string;
   source?: string;
+  stop_loss?: number | null;
 }
 
 export interface TradeBuy {
