@@ -80,6 +80,9 @@ export default function Assets() {
   const [pnlMarket, setPnlMarket] = useState<string>("전체");
   const [page, setPage] = useState(1);
   const [lines, setLines] = useState({ total: true, trading: true, longterm: true, cash: true });
+  const [kisBalance, setKisBalance] = useState<{ holdings: number; cash: number; total: number } | null>(null);
+  const [kisSyncing, setKisSyncing] = useState(false);
+  const [lastKisSync, setLastKisSync] = useState<string | null>(localStorage.getItem("stock-flow-assets-kis-sync"));
 
   const load = async () => {
     setLoading(true);
