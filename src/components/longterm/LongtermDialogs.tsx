@@ -12,6 +12,18 @@ import type { LongtermHolding } from "@/types/longterm";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+const OVERSEAS_EXCHANGES = [
+  { value: "NAS", label: "NASDAQ (나스닥)" },
+  { value: "NYS", label: "NYSE (뉴욕)" },
+  { value: "AMS", label: "AMEX (아멕스)" },
+  { value: "HKS", label: "홍콩" },
+  { value: "TSE", label: "도쿄" },
+  { value: "SHS", label: "상해" },
+  { value: "SZS", label: "심천" },
+  { value: "HNX", label: "하노이" },
+  { value: "HSX", label: "호치민" },
+];
+
 /* ---------- 새 종목 추가 ---------- */
 export function NewHoldingDialog({
   open, onOpenChange, onSaved,
@@ -19,6 +31,7 @@ export function NewHoldingDialog({
   const [ticker, setTicker] = useState("");
   const [name, setName] = useState("");
   const [market, setMarket] = useState<string>("국내");
+  const [excd, setExcd] = useState<string>("NAS");
   const [date, setDate] = useState(today());
   const [price, setPrice] = useState("");
   const [qty, setQty] = useState("");
@@ -30,30 +43,44 @@ export function NewHoldingDialog({
 
   useEffect(() => {
     if (open) {
-      setTicker(""); setName(""); setMarket("국내"); setDate(today());
+      setTicker(""); setName(""); setMarket("국내"); setExcd("NAS"); setDate(today());
       setPrice(""); setQty(""); setMemo("");
       setVerified(false); setLivePrice(null);
     }
   }, [open]);
 
-  useEffect(() => { setVerified(false); setLivePrice(null); }, [ticker]);
+  useEffect(() => { setVerified(false); setLivePrice(null); }, [ticker, market, excd]);
 
   const verifyTicker = async () => {
     const t = ticker.trim();
     if (!t) { toast.error("티커를 입력해주세요"); return; }
+    if (market === "암호화폐") { toast.error("암호화폐는 한투 API 검증을 지원하지 않습니다"); return; }
     setVerifying(true);
     try {
-      const { data, error } = await supabase.functions.invoke("kis-proxy", {
-        body: { action: "price", env: "real", ticker: t },
-      });
+      const isOverseas = market === "해외";
+      const action = isOverseas ? "price_overseas" : "price";
+      const body: Record<string, string> = { action, env: "real", ticker: t };
+      if (isOverseas) body.excd = excd;
+
+      const { data, error } = await supabase.functions.invoke("kis-proxy", { body });
       if (error) throw new Error(error.message);
       if ((data as any)?.error) throw new Error((data as any).error);
-      const stck = Number((data as any)?.output?.stck_prpr);
-      if (!Number.isFinite(stck) || stck <= 0) throw new Error("유효한 가격을 받지 못했습니다");
-      setLivePrice(stck);
+
+      // 국내: output.stck_prpr / 해외: output.last
+      const priceVal = isOverseas
+        ? Number((data as any)?.output?.last)
+        : Number((data as any)?.output?.stck_prpr);
+      if (!Number.isFinite(priceVal) || priceVal <= 0) throw new Error("유효한 가격을 받지 못했습니다");
+
+      setLivePrice(priceVal);
       setVerified(true);
-      if (!name.trim()) setName(t);
-      toast.success(`종목 확인 완료 · 현재가 ${stck.toLocaleString()}`);
+      if (!name.trim()) {
+        const apiName = isOverseas
+          ? (data as any)?.output?.name ?? t
+          : t; // 국내 inquire-price는 종목명 미포함
+        setName(apiName);
+      }
+      toast.success(`종목 확인 완료 · 현재가 ${priceVal.toLocaleString()}`);
     } catch (e: any) {
       setVerified(false);
       setLivePrice(null);
@@ -64,7 +91,7 @@ export function NewHoldingDialog({
   const submit = async () => {
     const p = Number(price), q = Number(qty);
     if (!ticker || !name || !p || !q) { toast.error("필수 항목을 입력해주세요"); return; }
-    if (market === "국내" && !verified) { toast.error("국내 종목은 한투 API로 종목 확인이 필요합니다"); return; }
+    if (market !== "암호화폐" && !verified) { toast.error("한투 API로 종목 확인이 필요합니다"); return; }
     setSaving(true);
     try {
       const { data: h, error: e1 } = await supabase.from("longterm_holdings").insert({
@@ -88,24 +115,6 @@ export function NewHoldingDialog({
       <DialogContent className="glass-card">
         <DialogHeader><DialogTitle>새 장기투자 종목 추가</DialogTitle></DialogHeader>
         <div className="grid gap-3">
-          <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
-            <div className="grid gap-1.5">
-              <Label>티커</Label>
-              <Input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="010950" />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>종목명</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="S-Oil" />
-            </div>
-            <Button type="button" variant="outline" onClick={verifyTicker} disabled={verifying || !ticker.trim()}>
-              {verifying ? "확인중..." : verified ? "✓ 확인됨" : "종목 확인"}
-            </Button>
-          </div>
-          {verified && livePrice != null && (
-            <div className="rounded-md bg-secondary/10 border border-secondary/30 p-2 text-xs">
-              ✓ 한투 API 검증 완료 · 현재가 <span className="font-medium tabular-nums">{livePrice.toLocaleString()}</span>
-            </div>
-          )}
           <div className="grid gap-1.5">
             <Label>시장</Label>
             <Select value={market} onValueChange={setMarket}>
@@ -114,10 +123,39 @@ export function NewHoldingDialog({
                 {MARKETS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
               </SelectContent>
             </Select>
-            {market !== "국내" && (
-              <p className="text-xs text-muted-foreground">※ 해외/암호화폐는 현재 한투 API 검증이 지원되지 않습니다</p>
-            )}
           </div>
+          {market === "해외" && (
+            <div className="grid gap-1.5">
+              <Label>거래소</Label>
+              <Select value={excd} onValueChange={setExcd}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {OVERSEAS_EXCHANGES.map(x => <SelectItem key={x.value} value={x.value}>{x.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+            <div className="grid gap-1.5">
+              <Label>티커</Label>
+              <Input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder={market === "해외" ? "AAPL" : "010950"} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>종목명</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={market === "해외" ? "Apple" : "S-Oil"} />
+            </div>
+            <Button type="button" variant="outline" onClick={verifyTicker} disabled={verifying || !ticker.trim() || market === "암호화폐"}>
+              {verifying ? "확인중..." : verified ? "✓ 확인됨" : "종목 확인"}
+            </Button>
+          </div>
+          {verified && livePrice != null && (
+            <div className="rounded-md bg-secondary/10 border border-secondary/30 p-2 text-xs">
+              ✓ 한투 API 검증 완료 · 현재가 <span className="font-medium tabular-nums">{livePrice.toLocaleString()}</span>
+            </div>
+          )}
+          {market === "암호화폐" && (
+            <p className="text-xs text-muted-foreground">※ 암호화폐는 한투 API 검증이 지원되지 않습니다 (수기 입력만 가능)</p>
+          )}
           <div className="grid grid-cols-3 gap-3">
             <div className="grid gap-1.5"><Label>첫 매수일</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
             <div className="grid gap-1.5"><Label>매수가</Label><Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} /></div>

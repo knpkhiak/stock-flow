@@ -156,6 +156,33 @@ async function inquirePrice(env: "real" | "paper", ticker: string) {
   return data;
 }
 
+// 해외 주식 현재가 조회. EXCD: NAS, NYS, AMS, HKS, TSE, SHS, SZS 등
+async function inquireOverseasPrice(env: "real" | "paper", excd: string, ticker: string) {
+  const base = env === "paper" ? PAPER_BASE : REAL_BASE;
+  const trId = "HHDFS00000300";
+  const token = await getToken(env);
+  const params = new URLSearchParams({
+    AUTH: "",
+    EXCD: excd,
+    SYMB: ticker,
+  });
+  const res = await fetch(
+    `${base}/uapi/overseas-price/v1/quotations/price?${params}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        authorization: `Bearer ${token}`,
+        appkey: APP_KEY,
+        appsecret: APP_SECRET,
+        tr_id: trId,
+      },
+    },
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(`overseas price failed: ${JSON.stringify(data)}`);
+  return data;
+}
+
 async function inquireExecutions(env: "real" | "paper", fromDate: string, toDate: string) {
   const base = env === "paper" ? PAPER_BASE : REAL_BASE;
   const trId = env === "paper" ? "VTTC8001R" : "TTTC8001R";
@@ -494,6 +521,16 @@ Deno.serve(async (req) => {
         });
       }
       payload = await inquirePrice(env, ticker);
+    } else if (action === "price_overseas") {
+      const ticker = String(body.ticker ?? "").trim().toUpperCase();
+      const excd = String(body.excd ?? "").trim().toUpperCase();
+      if (!ticker || !excd) {
+        return new Response(JSON.stringify({ error: "ticker and excd are required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      payload = await inquireOverseasPrice(env, excd, ticker);
     } else {
       return new Response(JSON.stringify({ error: `unknown action: ${action}` }), {
         status: 400,
