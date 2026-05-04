@@ -34,6 +34,11 @@ export default function SettingsPage() {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
 
+  // Danger Zone state
+  const [resetStep, setResetStep] = useState<0 | 1 | 2>(0);
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [resetting, setResetting] = useState(false);
+
   useEffect(() => {
     setEnv(getKisEnv());
     setStatus(getKisStatus());
