@@ -7,9 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, ChevronDown, ChevronRight, RefreshCw, Download, AlertTriangle } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, RefreshCw, Download, AlertTriangle, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import NewTradeDialog from "@/components/trades/NewTradeDialog";
 import CloseTradeDialog from "@/components/trades/CloseTradeDialog";
 import { NewHoldingDialog, AddBuyDialog, SellHoldingDialog } from "@/components/longterm/LongtermDialogs";
 import ImportHoldingsDialog from "@/components/trades/ImportHoldingsDialog";
@@ -38,6 +38,7 @@ export interface Trade {
   idea_id: string | null;
   created_at: string;
   source?: string;
+  stop_loss?: number | null;
 }
 
 export interface TradeBuy {
@@ -115,6 +116,101 @@ function PriceCell({ price, session }: { price: number | null; session: ReturnTy
   );
 }
 
+function StopLossCell({
+  tradeId,
+  value,
+  currentPrice,
+  onSaved,
+}: {
+  tradeId: string;
+  value: number | null;
+  currentPrice: number | null;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(value == null);
+  const [draft, setDraft] = useState<string>(value != null ? String(value) : "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setDraft(value != null ? String(value) : "");
+  }, [value, editing]);
+
+  const triggered = value != null && currentPrice != null && currentPrice <= value;
+
+  const save = async () => {
+    const num = Number(draft);
+    if (!draft || !Number.isFinite(num) || num <= 0) {
+      toast.error("스탑로스는 0보다 큰 숫자로 입력하세요");
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.from("trades").update({ stop_loss: num }).eq("id", tradeId);
+    setSaving(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setEditing(false);
+    onSaved();
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+        <Input
+          type="number"
+          inputMode="decimal"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape" && value != null) setEditing(false);
+          }}
+          autoFocus
+          disabled={saving}
+          className="h-7 w-24 text-right tabular-nums"
+          placeholder="필수"
+        />
+        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={save} disabled={saving}>
+          <Check className="h-3.5 w-3.5" />
+        </Button>
+        {value != null && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={() => setEditing(false)}
+            disabled={saving}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-center justify-end gap-1 cursor-pointer group"
+      onClick={(e) => {
+        e.stopPropagation();
+        setEditing(true);
+      }}
+      title="클릭하여 수정"
+    >
+      {triggered && <AlertTriangle className="h-3.5 w-3.5 text-profit animate-pulse" />}
+      <span
+        className={`tabular-nums text-sm group-hover:underline ${
+          triggered ? "text-profit font-semibold" : ""
+        }`}
+      >
+        {fmtNum(Number(value))}
+      </span>
+    </div>
+  );
+}
+
+
 type Granularity = "month" | "quarter" | "year" | "all";
 type MarketFilter = "all" | "국내" | "해외" | "암호화폐";
 
@@ -126,7 +222,7 @@ export default function Trades() {
   const [ltBuys, setLtBuys] = useState<LongtermBuy[]>([]);
   const [ltSells, setLtSells] = useState<LongtermSell[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openNew, setOpenNew] = useState(false);
+  
   const [closeTarget, setCloseTarget] = useState<Trade | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [newHoldingOpen, setNewHoldingOpen] = useState(false);
@@ -340,9 +436,6 @@ export default function Trades() {
             <Button variant="outline" onClick={syncExecutions} disabled={syncing}>
               <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} /> 체결내역 동기화
             </Button>
-            <Button onClick={() => setOpenNew(true)}>
-              <Plus className="h-4 w-4 mr-1" /> 새 포지션 열기
-            </Button>
           </div>
 
           {!loading && setupStatus === "pending" && open.length === 0 && (
@@ -368,6 +461,14 @@ export default function Trades() {
                   <TableHead>진입가 / 현재가</TableHead>
                   <TableHead className="text-right">보유수량</TableHead>
                   <TableHead className="text-right">
+                    스탑로스
+                    <div className="text-[10px] font-normal text-muted-foreground">(클릭 편집)</div>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    총 평가액
+                    <div className="text-[10px] font-normal text-muted-foreground">(현재가×수량)</div>
+                  </TableHead>
+                  <TableHead className="text-right">
                     평가손익
                     <div className="text-[10px] font-normal text-muted-foreground">(미실현)</div>
                   </TableHead>
@@ -375,9 +476,9 @@ export default function Trades() {
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">불러오는 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">불러오는 중...</TableCell></TableRow>
                 ) : open.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">오픈 포지션이 없습니다</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">오픈 포지션이 없습니다</TableCell></TableRow>
                 ) : open.map((t) => {
                   const tBuys = buysByTrade[t.id] || [];
                   const tCloses = closesByTrade[t.id] || [];
@@ -391,9 +492,15 @@ export default function Trades() {
                   const unrealized = cur != null ? (cur - avg) * remaining : null;
                   const unrealizedRate = cur && avg > 0 ? ((cur - avg) / avg) * 100 : null;
                   const realizedSum = tCloses.reduce((s, c) => s + Number(c.realized_pnl), 0);
+                  const stopLoss = t.stop_loss != null ? Number(t.stop_loss) : null;
+                  const stopTriggered = stopLoss != null && cur != null && cur <= stopLoss;
+                  const marketValue = cur != null ? cur * remaining : null;
                   return (
                     <Fragment key={t.id}>
-                      <TableRow className="cursor-pointer" onClick={() => toggle(t.id)}>
+                      <TableRow
+                        className={`cursor-pointer ${stopTriggered ? "bg-profit/5" : ""}`}
+                        onClick={() => toggle(t.id)}
+                      >
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggle(t.id)}>
                             {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -402,7 +509,14 @@ export default function Trades() {
                         {/* 종목 */}
                         <TableCell>
                           <TickerCell name={t.name} ticker={t.ticker} market={t.market} />
-                          <div className="mt-1"><StatusBadge status={t.status} /></div>
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <StatusBadge status={t.status} />
+                            {stopTriggered && (
+                              <span className="inline-flex items-center gap-1 rounded-md border border-profit/30 bg-profit/15 px-1.5 py-0.5 text-[10px] font-medium text-profit">
+                                <AlertTriangle className="h-3 w-3" /> STOP
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         {/* 진입 */}
                         <TableCell className="text-sm">
@@ -431,6 +545,23 @@ export default function Trades() {
                             <div className="text-xs text-muted-foreground tabular-nums">/ 최초 {fmtNum(total)}주</div>
                           )}
                         </TableCell>
+                        {/* 스탑로스 */}
+                        <TableCell className="text-right">
+                          <StopLossCell
+                            tradeId={t.id}
+                            value={stopLoss}
+                            currentPrice={cur}
+                            onSaved={load}
+                          />
+                        </TableCell>
+                        {/* 총 평가액 */}
+                        <TableCell className="text-right">
+                          {marketValue != null ? (
+                            <div className="tabular-nums font-medium">{fmtNum(marketValue)}</div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </TableCell>
                         {/* 평가손익 (미실현) */}
                         <TableCell className="text-right">
                           {unrealized != null ? (
@@ -452,7 +583,7 @@ export default function Trades() {
                       {isOpen && (
                         <TableRow className="bg-muted/10">
                           <TableCell />
-                          <TableCell colSpan={5}>
+                          <TableCell colSpan={7}>
                             <ExpandedSections
                               tBuys={tBuys}
                               tCloses={tCloses}
@@ -784,7 +915,7 @@ export default function Trades() {
         </TabsContent>
       </Tabs>
 
-      <NewTradeDialog open={openNew} onOpenChange={setOpenNew} onSaved={load} />
+      
       <CloseTradeDialog
         trade={closeTarget}
         closes={closeTarget ? (closesByTrade[closeTarget.id] || []) : []}
