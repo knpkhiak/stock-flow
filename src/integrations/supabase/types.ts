@@ -222,6 +222,53 @@ export type Database = {
           },
         ]
       }
+      trade_buys: {
+        Row: {
+          buy_amount: number
+          buy_date: string
+          buy_price: number
+          buy_quantity: number
+          created_at: string
+          cumulative_avg_price: number
+          id: string
+          kis_order_id: string | null
+          source: string
+          trade_id: string
+        }
+        Insert: {
+          buy_amount: number
+          buy_date: string
+          buy_price: number
+          buy_quantity: number
+          created_at?: string
+          cumulative_avg_price: number
+          id?: string
+          kis_order_id?: string | null
+          source?: string
+          trade_id: string
+        }
+        Update: {
+          buy_amount?: number
+          buy_date?: string
+          buy_price?: number
+          buy_quantity?: number
+          created_at?: string
+          cumulative_avg_price?: number
+          id?: string
+          kis_order_id?: string | null
+          source?: string
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_buys_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_closes: {
         Row: {
           close_date: string

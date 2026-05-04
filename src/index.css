@@ -50,6 +50,29 @@
     --market-overseas: 258 90% 66%;
     --market-crypto: 25 95% 53%;
 
+    /* P/L colors — Korean stock convention: 상승=빨강, 하락=파랑 */
+    --profit: 0 84% 60%;          /* #EF4444 */
+    --loss: 217 91% 60%;          /* #3B82F6 */
+
+    /* Status badges */
+    --status-open: 158 84% 39%;       /* #10B981 */
+    --status-partial: 38 92% 50%;     /* #F59E0B */
+    --status-closed: 220 9% 46%;      /* #6B7280 */
+
+    /* Holding-day buckets */
+    --hold-good: 158 84% 39%;
+    --hold-warn: 38 92% 50%;
+    --hold-bad: 0 84% 60%;
+
+    /* Asset categories */
+    --asset-trading: 187 92% 43%;     /* #06B6D4 cyan */
+    --asset-longterm: 258 90% 66%;    /* #8B5CF6 violet */
+    --asset-cash: 38 92% 50%;         /* #F59E0B amber */
+
+    /* Market session */
+    --session-open: 158 84% 39%;
+    --session-closed: 220 9% 46%;
+
     --gradient-primary: linear-gradient(135deg, hsl(158 84% 39%), hsl(158 84% 49%));
     --gradient-card: linear-gradient(135deg, hsl(222 39% 11% / 0.9), hsl(222 39% 13% / 0.7));
     --shadow-glow: 0 0 40px -8px hsl(158 84% 39% / 0.3);

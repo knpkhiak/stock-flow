@@ -52,6 +52,27 @@ export default {
           overseas: "hsl(var(--market-overseas))",
           crypto: "hsl(var(--market-crypto))",
         },
+        profit: "hsl(var(--profit))",
+        loss: "hsl(var(--loss))",
+        status: {
+          open: "hsl(var(--status-open))",
+          partial: "hsl(var(--status-partial))",
+          closed: "hsl(var(--status-closed))",
+        },
+        hold: {
+          good: "hsl(var(--hold-good))",
+          warn: "hsl(var(--hold-warn))",
+          bad: "hsl(var(--hold-bad))",
+        },
+        asset: {
+          trading: "hsl(var(--asset-trading))",
+          longterm: "hsl(var(--asset-longterm))",
+          cash: "hsl(var(--asset-cash))",
+        },
+        session: {
+          open: "hsl(var(--session-open))",
+          closed: "hsl(var(--session-closed))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
