@@ -283,6 +283,10 @@ export default function Trades() {
         {/* OPEN POSITIONS */}
         <TabsContent value="open" className="space-y-4">
           <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={syncExecutions} disabled={syncing}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
+              체결내역 동기화
+            </Button>
             <Button onClick={() => setOpenNew(true)}>
               <Plus className="h-4 w-4 mr-1" /> 새 포지션 열기
             </Button>
