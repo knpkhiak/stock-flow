@@ -113,6 +113,8 @@ export default function SettingsPage() {
       setResetting(false);
     }
   };
+
+  const StatusBadge = () => {
     if (status === "connected")
       return (
         <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/15 px-2 py-1 text-xs font-medium text-primary">
