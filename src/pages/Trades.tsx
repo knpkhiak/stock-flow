@@ -95,6 +95,17 @@ export default function Trades() {
   const [importOpen, setImportOpen] = useState(false);
   const [buyTarget, setBuyTarget] = useState<LongtermHolding | null>(null);
   const [sellTarget, setSellTarget] = useState<LongtermHolding | null>(null);
+  const [setupStatus, setSetupStatus] = useState<InitialSetupStatus>(getInitialSetup());
+
+  useEffect(() => {
+    const sync = () => setSetupStatus(getInitialSetup());
+    window.addEventListener("stock-flow-initial-setup-changed", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("stock-flow-initial-setup-changed", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   // history filter
   const now = new Date();
