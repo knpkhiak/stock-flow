@@ -14,7 +14,10 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const REAL_BASE = "https://openapi.koreainvestment.com:9443";
 const PAPER_BASE = "https://openapivts.koreainvestment.com:29443";
 
-let cachedToken: { token: string; expires_at: number; env: string } | null = null;
+let memToken: { token: string; expires_at: number; env: string } | null = null;
+const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 function mask(value: string, keep = 4) {
   if (!value) return "(empty)";
@@ -23,10 +26,26 @@ function mask(value: string, keep = 4) {
 }
 
 async function getToken(env: "real" | "paper"): Promise<string> {
-  const base = env === "paper" ? PAPER_BASE : REAL_BASE;
-  if (cachedToken && cachedToken.env === env && Date.now() < cachedToken.expires_at - 60_000) {
-    return cachedToken.token;
+  const now = Date.now();
+  // 1) memory cache (warm instance)
+  if (memToken && memToken.env === env && now < memToken.expires_at - 60_000) {
+    return memToken.token;
   }
+  // 2) DB cache (shared across cold starts)
+  const { data: row } = await adminClient
+    .from("kis_token_cache")
+    .select("access_token, expires_at")
+    .eq("env", env)
+    .maybeSingle();
+  if (row) {
+    const exp = new Date(row.expires_at).getTime();
+    if (now < exp - 60_000) {
+      memToken = { token: row.access_token, expires_at: exp, env };
+      return row.access_token;
+    }
+  }
+  // 3) issue new token from KIS
+  const base = env === "paper" ? PAPER_BASE : REAL_BASE;
   const res = await fetch(`${base}/oauth2/tokenP`, {
     method: "POST",
     headers: { "Content-Type": "application/json; charset=UTF-8" },
@@ -45,13 +64,25 @@ async function getToken(env: "real" | "paper"): Promise<string> {
       canoPreview: mask(CANO),
       response: data,
     });
+    // If rate-limited but we have any (even soon-expiring) DB token, fall back to it
+    if (row?.access_token) {
+      console.warn("kis token rate-limited; falling back to existing DB token");
+      const exp = new Date(row.expires_at).getTime();
+      memToken = { token: row.access_token, expires_at: exp, env };
+      return row.access_token;
+    }
     throw new Error(`token issue failed: ${JSON.stringify(data)}`);
   }
-  cachedToken = {
-    token: data.access_token,
-    expires_at: Date.now() + (Number(data.expires_in) || 86400) * 1000,
-    env,
-  };
+  const expiresAtMs = now + (Number(data.expires_in) || 86400) * 1000;
+  memToken = { token: data.access_token, expires_at: expiresAtMs, env };
+  await adminClient
+    .from("kis_token_cache")
+    .upsert({
+      env,
+      access_token: data.access_token,
+      expires_at: new Date(expiresAtMs).toISOString(),
+      updated_at: new Date().toISOString(),
+    });
   return data.access_token;
 }
 
