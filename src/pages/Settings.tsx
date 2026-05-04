@@ -71,7 +71,48 @@ export default function SettingsPage() {
     }
   };
 
-  const StatusBadge = () => {
+  const performReset = async () => {
+    setResetting(true);
+    try {
+      // Wipe all trade/asset data. Order matters because of FK from trade_buys → trades.
+      const wipes: Array<readonly [string, string]> = [
+        ["trade_buys", "id"],
+        ["trade_closes", "id"],
+        ["trades", "id"],
+        ["longterm_buys", "id"],
+        ["longterm_sells", "id"],
+        ["longterm_holdings", "id"],
+        ["asset_snapshots", "id"],
+        ["cash_transactions", "id"],
+        ["kis_sync_log", "id"],
+      ];
+      for (const [table] of wipes) {
+        const { error } = await supabase
+          .from(table as never)
+          .delete()
+          .not("id", "is", null);
+        if (error) throw new Error(`${table}: ${error.message}`);
+      }
+      // kis_sync_log: insert one fresh row at "now" so future sync ignores backlog.
+      const { error: insErr } = await supabase
+        .from("kis_sync_log")
+        .insert({ last_sync_at: new Date().toISOString() });
+      if (insErr) throw new Error(`kis_sync_log seed: ${insErr.message}`);
+
+      // Reset initial-setup flag → pending. KIS keys / env preserved by design.
+      setInitialSetup("pending");
+      localStorage.removeItem(SYNC_KEY);
+      setLastSync(null);
+
+      toast.success("모든 매매 기록이 초기화되었습니다");
+      setResetStep(0);
+      setResetConfirm("");
+    } catch (e: any) {
+      toast.error(`초기화 실패: ${e.message}`);
+    } finally {
+      setResetting(false);
+    }
+  };
     if (status === "connected")
       return (
         <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/15 px-2 py-1 text-xs font-medium text-primary">
