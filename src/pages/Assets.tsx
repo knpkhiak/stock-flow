@@ -104,6 +104,30 @@ export default function Assets() {
     setLoading(false);
   };
 
+  const syncKisBalance = async () => {
+    setKisSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("kis-proxy", {
+        body: { action: "balance", env: getKisEnv() },
+      });
+      if (error) throw new Error(error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const out2 = ((data as any)?.output2 ?? [])[0] ?? {};
+      const total = Number(out2.tot_evlu_amt ?? 0);
+      const cashBal = Number(out2.dnca_tot_amt ?? 0);
+      const holdings = Math.max(0, total - cashBal);
+      setKisBalance({ holdings, cash: cashBal, total });
+      const stamp = new Date().toISOString();
+      localStorage.setItem("stock-flow-assets-kis-sync", stamp);
+      setLastKisSync(stamp);
+      toast.success(`한투 동기화 완료: 총평가 ${fmtKRW(total)}`);
+    } catch (e: any) {
+      toast.error(`동기화 실패: ${e.message}`);
+    } finally {
+      setKisSyncing(false);
+    }
+  };
+
   useEffect(() => { load(); }, []);
 
   const latest = snapshots[0];
