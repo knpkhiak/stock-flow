@@ -42,20 +42,44 @@ export default function NewTradeDialog({ open, onOpenChange, onSaved }: Props) {
       return;
     }
     const qty = Number(totalQty);
+    const price = Number(entryPrice);
+    const dateStr = format(entryDate, "yyyy-MM-dd");
     setSaving(true);
-    const { error } = await supabase.from("trades").insert({
-      ticker: ticker.trim(),
-      name: name.trim(),
-      market,
-      status: "OPEN",
-      entry_date: format(entryDate, "yyyy-MM-dd"),
-      entry_price: Number(entryPrice),
-      total_quantity: qty,
-      remaining_quantity: qty,
-      memo: memo.trim() || null,
+    const { data: inserted, error } = await supabase
+      .from("trades")
+      .insert({
+        ticker: ticker.trim(),
+        name: name.trim(),
+        market,
+        status: "OPEN",
+        entry_date: dateStr,
+        entry_price: price,
+        total_quantity: qty,
+        remaining_quantity: qty,
+        memo: memo.trim() || null,
+      })
+      .select("id")
+      .single();
+    if (error || !inserted) {
+      setSaving(false);
+      toast.error(error?.message ?? "저장 실패");
+      return;
+    }
+    // 1st buy lot — keeps the buy-history view consistent for all trades.
+    const { error: buyErr } = await supabase.from("trade_buys").insert({
+      trade_id: inserted.id,
+      buy_date: dateStr,
+      buy_price: price,
+      buy_quantity: qty,
+      buy_amount: price * qty,
+      cumulative_avg_price: price,
+      source: "manual",
     });
     setSaving(false);
-    if (error) { toast.error(error.message); return; }
+    if (buyErr) {
+      toast.error(`매수 히스토리 저장 실패: ${buyErr.message}`);
+      return;
+    }
     toast.success("새 포지션이 추가되었습니다");
     reset();
     onOpenChange(false);

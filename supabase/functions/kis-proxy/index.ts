@@ -1,11 +1,15 @@
 // KIS (한국투자증권) OpenAPI 프록시
-// actions: test | balance | executions
+// actions: test | balance | executions | sync
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 
 const APP_KEY = (Deno.env.get("KIS_APP_KEY") ?? "").trim();
 const APP_SECRET = (Deno.env.get("KIS_APP_SECRET") ?? "").trim();
 const CANO = (Deno.env.get("KIS_CANO") ?? "").trim();
 const ACNT_PRDT_CD = (Deno.env.get("KIS_ACNT_PRDT_CD") ?? "01").trim();
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const REAL_BASE = "https://openapi.koreainvestment.com:9443";
 const PAPER_BASE = "https://openapivts.koreainvestment.com:29443";
@@ -23,7 +27,6 @@ async function getToken(env: "real" | "paper"): Promise<string> {
   if (cachedToken && cachedToken.env === env && Date.now() < cachedToken.expires_at - 60_000) {
     return cachedToken.token;
   }
-
   const res = await fetch(`${base}/oauth2/tokenP`, {
     method: "POST",
     headers: { "Content-Type": "application/json; charset=UTF-8" },
@@ -83,8 +86,20 @@ async function inquireBalance(env: "real" | "paper") {
   return data;
 }
 
+interface KisExecution {
+  ord_dt: string;       // 주문일자 YYYYMMDD
+  ord_tmd: string;      // 주문시각 HHMMSS
+  odno: string;         // 주문번호
+  pdno: string;         // 종목코드
+  prdt_name: string;    // 종목명
+  sll_buy_dvsn_cd: string; // 01=매도, 02=매수
+  tot_ccld_qty: string; // 체결수량
+  avg_prvs: string;     // 평균가 (체결단가) - field name varies, use ccld_unpr if present
+  ccld_unpr?: string;
+  tot_ccld_amt?: string;
+}
+
 async function inquireExecutions(env: "real" | "paper", fromDate: string, toDate: string) {
-  // YYYYMMDD
   const base = env === "paper" ? PAPER_BASE : REAL_BASE;
   const trId = env === "paper" ? "VTTC8001R" : "TTTC8001R";
   const token = await getToken(env);
@@ -93,10 +108,10 @@ async function inquireExecutions(env: "real" | "paper", fromDate: string, toDate
     ACNT_PRDT_CD,
     INQR_STRT_DT: fromDate,
     INQR_END_DT: toDate,
-    SLL_BUY_DVSN_CD: "00", // 전체
+    SLL_BUY_DVSN_CD: "00",
     INQR_DVSN: "00",
     PDNO: "",
-    CCLD_DVSN: "01", // 체결만
+    CCLD_DVSN: "01",
     ORD_GNO_BRNO: "",
     ODNO: "",
     INQR_DVSN_3: "00",
@@ -116,6 +131,268 @@ async function inquireExecutions(env: "real" | "paper", fromDate: string, toDate
   const data = await res.json();
   if (!res.ok) throw new Error(`executions failed: ${JSON.stringify(data)}`);
   return data;
+}
+
+// YYYYMMDD + HHMMSS → ms timestamp (KST)
+function execTimestamp(ord_dt: string, ord_tmd: string): number {
+  const y = Number(ord_dt.slice(0, 4));
+  const mo = Number(ord_dt.slice(4, 6)) - 1;
+  const d = Number(ord_dt.slice(6, 8));
+  const hh = Number((ord_tmd ?? "000000").slice(0, 2));
+  const mm = Number((ord_tmd ?? "000000").slice(2, 4));
+  const ss = Number((ord_tmd ?? "000000").slice(4, 6));
+  // KST = UTC+9
+  return Date.UTC(y, mo, d, hh - 9, mm, ss);
+}
+
+// YYYYMMDD → YYYY-MM-DD
+function isoDate(ord_dt: string): string {
+  return `${ord_dt.slice(0, 4)}-${ord_dt.slice(4, 6)}-${ord_dt.slice(6, 8)}`;
+}
+
+function daysBetween(fromIso: string, toIso: string): number {
+  const a = new Date(fromIso).getTime();
+  const b = new Date(toIso).getTime();
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+
+interface SyncResult {
+  considered: number;
+  skipped_before_cutoff: number;
+  inserted_buys: number;
+  inserted_closes: number;
+  new_trades: number;
+  closed_trades: number;
+  duplicates: number;
+  errors: string[];
+  last_sync_at: string;
+}
+
+async function runSync(env: "real" | "paper", lookbackDays: number): Promise<SyncResult> {
+  const supa = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const result: SyncResult = {
+    considered: 0,
+    skipped_before_cutoff: 0,
+    inserted_buys: 0,
+    inserted_closes: 0,
+    new_trades: 0,
+    closed_trades: 0,
+    duplicates: 0,
+    errors: [],
+    last_sync_at: new Date().toISOString(),
+  };
+
+  // 1) cutoff = last_sync_at (or epoch if none)
+  const { data: logRows } = await supa
+    .from("kis_sync_log")
+    .select("id, last_sync_at")
+    .order("last_sync_at", { ascending: false })
+    .limit(1);
+  const lastSyncAt = logRows?.[0]?.last_sync_at ? new Date(logRows[0].last_sync_at).getTime() : 0;
+
+  // 2) fetch executions for window
+  const today = new Date();
+  const yyyymmdd = (d: Date) =>
+    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const from = new Date(today);
+  from.setDate(today.getDate() - Math.max(1, lookbackDays));
+  const raw = await inquireExecutions(env, yyyymmdd(from), yyyymmdd(today));
+  const list: KisExecution[] = (raw as { output1?: KisExecution[] }).output1 ?? [];
+
+  // 3) sort oldest → newest so weighted-avg recomputes in real order
+  const sorted = [...list].sort(
+    (a, b) => execTimestamp(a.ord_dt, a.ord_tmd) - execTimestamp(b.ord_dt, b.ord_tmd),
+  );
+  result.considered = sorted.length;
+
+  for (const e of sorted) {
+    const ts = execTimestamp(e.ord_dt, e.ord_tmd);
+    if (ts <= lastSyncAt) {
+      result.skipped_before_cutoff++;
+      continue;
+    }
+    const qty = Number(e.tot_ccld_qty ?? 0);
+    const priceStr = e.ccld_unpr ?? e.avg_prvs ?? "0";
+    const price = Number(priceStr);
+    if (!qty || !price || !e.pdno) continue;
+
+    const tradeDate = isoDate(e.ord_dt);
+    const orderId = e.odno;
+
+    if (e.sll_buy_dvsn_cd === "02") {
+      // === BUY ===
+      // Dedupe via unique kis_order_id on trade_buys
+      const { data: existingBuy } = await supa
+        .from("trade_buys")
+        .select("id")
+        .eq("kis_order_id", orderId)
+        .maybeSingle();
+      if (existingBuy) {
+        result.duplicates++;
+        continue;
+      }
+
+      // Find currently-open trade for this ticker
+      const { data: openTrades } = await supa
+        .from("trades")
+        .select("id, total_quantity, remaining_quantity, entry_price, entry_date, status")
+        .eq("ticker", e.pdno)
+        .in("status", ["OPEN", "PARTIAL"])
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const openTrade = openTrades?.[0];
+
+      if (!openTrade) {
+        // New trade
+        const { data: newTrade, error: tErr } = await supa
+          .from("trades")
+          .insert({
+            ticker: e.pdno,
+            name: e.prdt_name ?? e.pdno,
+            market: "국내",
+            status: "OPEN",
+            entry_date: tradeDate,
+            entry_price: price,
+            total_quantity: qty,
+            remaining_quantity: qty,
+            source: "kis_auto",
+            kis_order_id: orderId,
+          })
+          .select("id")
+          .single();
+        if (tErr || !newTrade) {
+          result.errors.push(`trade insert ${orderId}: ${tErr?.message}`);
+          continue;
+        }
+        const { error: bErr } = await supa.from("trade_buys").insert({
+          trade_id: newTrade.id,
+          buy_date: tradeDate,
+          buy_price: price,
+          buy_quantity: qty,
+          buy_amount: price * qty,
+          cumulative_avg_price: price,
+          kis_order_id: orderId,
+          source: "kis_auto",
+        });
+        if (bErr) {
+          result.errors.push(`buy insert ${orderId}: ${bErr.message}`);
+          continue;
+        }
+        result.new_trades++;
+        result.inserted_buys++;
+      } else {
+        // Additional buy → recompute weighted average
+        const oldQty = Number(openTrade.total_quantity);
+        const oldAvg = Number(openTrade.entry_price);
+        const newQty = oldQty + qty;
+        const newAvg = (oldAvg * oldQty + price * qty) / newQty;
+
+        const { error: bErr } = await supa.from("trade_buys").insert({
+          trade_id: openTrade.id,
+          buy_date: tradeDate,
+          buy_price: price,
+          buy_quantity: qty,
+          buy_amount: price * qty,
+          cumulative_avg_price: newAvg,
+          kis_order_id: orderId,
+          source: "kis_auto",
+        });
+        if (bErr) {
+          result.errors.push(`buy insert ${orderId}: ${bErr.message}`);
+          continue;
+        }
+        const { error: uErr } = await supa
+          .from("trades")
+          .update({
+            entry_price: newAvg,
+            total_quantity: newQty,
+            remaining_quantity: Number(openTrade.remaining_quantity) + qty,
+            // keep original entry_date / status
+          })
+          .eq("id", openTrade.id);
+        if (uErr) {
+          result.errors.push(`trade update ${orderId}: ${uErr.message}`);
+          continue;
+        }
+        result.inserted_buys++;
+      }
+    } else if (e.sll_buy_dvsn_cd === "01") {
+      // === SELL ===
+      const { data: existingClose } = await supa
+        .from("trade_closes")
+        .select("id")
+        .eq("kis_order_id", orderId)
+        .maybeSingle();
+      if (existingClose) {
+        result.duplicates++;
+        continue;
+      }
+
+      const { data: openTrades } = await supa
+        .from("trades")
+        .select("id, entry_price, entry_date, remaining_quantity, total_realized_pnl, status")
+        .eq("ticker", e.pdno)
+        .in("status", ["OPEN", "PARTIAL"])
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const openTrade = openTrades?.[0];
+      if (!openTrade) {
+        result.errors.push(`sell ${orderId}: no open trade for ${e.pdno}`);
+        continue;
+      }
+      const avg = Number(openTrade.entry_price);
+      const realized = (price - avg) * qty;
+      const pnlRate = avg > 0 ? ((price - avg) / avg) * 100 : 0;
+      const holdingDays = daysBetween(openTrade.entry_date as string, tradeDate);
+
+      const { error: cErr } = await supa.from("trade_closes").insert({
+        trade_id: openTrade.id,
+        close_date: tradeDate,
+        close_price: price,
+        close_quantity: qty,
+        realized_pnl: realized,
+        pnl_rate: pnlRate,
+        holding_days: holdingDays,
+        kis_order_id: orderId,
+        source: "kis_auto",
+      });
+      if (cErr) {
+        result.errors.push(`close insert ${orderId}: ${cErr.message}`);
+        continue;
+      }
+
+      const newRemaining = Number(openTrade.remaining_quantity) - qty;
+      const newRealizedTotal = Number(openTrade.total_realized_pnl ?? 0) + realized;
+      const fullyClosed = newRemaining <= 0.0000001;
+      const { error: uErr } = await supa
+        .from("trades")
+        .update({
+          remaining_quantity: Math.max(0, newRemaining),
+          total_realized_pnl: newRealizedTotal,
+          status: fullyClosed ? "CLOSED" : "PARTIAL",
+        })
+        .eq("id", openTrade.id);
+      if (uErr) {
+        result.errors.push(`trade update ${orderId}: ${uErr.message}`);
+        continue;
+      }
+      result.inserted_closes++;
+      if (fullyClosed) result.closed_trades++;
+    }
+  }
+
+  // 4) advance kis_sync_log cursor
+  const nowIso = new Date().toISOString();
+  if (logRows && logRows.length > 0) {
+    await supa
+      .from("kis_sync_log")
+      .update({ last_sync_at: nowIso })
+      .eq("id", logRows[0].id);
+  } else {
+    await supa.from("kis_sync_log").insert({ last_sync_at: nowIso });
+  }
+  result.last_sync_at = nowIso;
+  return result;
 }
 
 Deno.serve(async (req) => {
@@ -148,6 +425,9 @@ Deno.serve(async (req) => {
       const fromDate = body.from ?? yyyymmdd(def_from);
       const toDate = body.to ?? yyyymmdd(today);
       payload = await inquireExecutions(env, fromDate, toDate);
+    } else if (action === "sync") {
+      const lookback = Math.max(1, Math.min(90, Number(body.lookback_days ?? 30)));
+      payload = await runSync(env, lookback);
     } else {
       return new Response(JSON.stringify({ error: `unknown action: ${action}` }), {
         status: 400,

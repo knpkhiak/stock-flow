@@ -77,23 +77,43 @@ export default function ImportHoldingsDialog({
     }
     setSaving(true);
     try {
-      const rows = selected.map((x) => {
+      // Insert one trade per holding, then mirror a 1st buy lot for each.
+      const tradeRows = selected.map((x) => {
         const qty = Number(x.hldg_qty);
+        const price = Number(x.pchs_avg_pric);
         return {
           ticker: x.pdno,
           name: x.prdt_name,
           market: "국내",
           status: "OPEN",
           entry_date: entryDate,
-          entry_price: Number(x.pchs_avg_pric),
+          entry_price: price,
           total_quantity: qty,
           remaining_quantity: qty,
           source: "manual",
         };
       });
-      const { error } = await supabase.from("trades").insert(rows);
+      const { data: inserted, error } = await supabase
+        .from("trades")
+        .insert(tradeRows)
+        .select("id, ticker, entry_price, total_quantity, entry_date");
       if (error) throw new Error(error.message);
-      toast.success(`${rows.length}개 종목 등록 완료`);
+
+      const buyRows = (inserted ?? []).map((t) => ({
+        trade_id: t.id,
+        buy_date: t.entry_date,
+        buy_price: Number(t.entry_price),
+        buy_quantity: Number(t.total_quantity),
+        buy_amount: Number(t.entry_price) * Number(t.total_quantity),
+        cumulative_avg_price: Number(t.entry_price),
+        source: "manual",
+      }));
+      if (buyRows.length > 0) {
+        const { error: buyErr } = await supabase.from("trade_buys").insert(buyRows);
+        if (buyErr) throw new Error(`매수 히스토리 저장 실패: ${buyErr.message}`);
+      }
+
+      toast.success(`${tradeRows.length}개 종목 등록 완료`);
       onSaved();
       onOpenChange(false);
     } catch (e: any) {
