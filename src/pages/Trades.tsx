@@ -648,7 +648,11 @@ export default function Trades() {
       <ImportHoldingsDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        onSaved={load}
+        onSaved={() => {
+          setInitialSetup("completed");
+          setSetupStatus("completed");
+          load();
+        }}
         existingTickers={trades.filter(t => t.status !== "CLOSED").map(t => t.ticker)}
       />
     </div>
