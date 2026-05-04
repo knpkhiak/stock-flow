@@ -2,34 +2,48 @@
 // actions: test | balance | executions
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 
-const APP_KEY = Deno.env.get("KIS_APP_KEY") ?? "";
-const APP_SECRET = Deno.env.get("KIS_APP_SECRET") ?? "";
-const CANO = Deno.env.get("KIS_CANO") ?? "";
-const ACNT_PRDT_CD = Deno.env.get("KIS_ACNT_PRDT_CD") ?? "01";
+const APP_KEY = (Deno.env.get("KIS_APP_KEY") ?? "").trim();
+const APP_SECRET = (Deno.env.get("KIS_APP_SECRET") ?? "").trim();
+const CANO = (Deno.env.get("KIS_CANO") ?? "").trim();
+const ACNT_PRDT_CD = (Deno.env.get("KIS_ACNT_PRDT_CD") ?? "01").trim();
 
-// 기본은 실전. paper로 호출 시 모의투자 베이스 + VTTC TR_ID 사용
 const REAL_BASE = "https://openapi.koreainvestment.com:9443";
 const PAPER_BASE = "https://openapivts.koreainvestment.com:29443";
 
-// 토큰 인메모리 캐시 (Edge instance 동안 유지)
 let cachedToken: { token: string; expires_at: number; env: string } | null = null;
+
+function mask(value: string, keep = 4) {
+  if (!value) return "(empty)";
+  if (value.length <= keep * 2) return `${value.slice(0, keep)}...`;
+  return `${value.slice(0, keep)}...${value.slice(-keep)}`;
+}
 
 async function getToken(env: "real" | "paper"): Promise<string> {
   const base = env === "paper" ? PAPER_BASE : REAL_BASE;
   if (cachedToken && cachedToken.env === env && Date.now() < cachedToken.expires_at - 60_000) {
     return cachedToken.token;
   }
+
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    appkey: APP_KEY,
+    appsecret: APP_SECRET,
+  });
+
   const res = await fetch(`${base}/oauth2/tokenP`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      grant_type: "client_credentials",
-      appkey: APP_KEY,
-      appsecret: APP_SECRET,
-    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+    body: body.toString(),
   });
   const data = await res.json();
   if (!res.ok || !data.access_token) {
+    console.error("kis token failed", {
+      env,
+      appKeyPreview: mask(APP_KEY),
+      appSecretLength: APP_SECRET.length,
+      canoPreview: mask(CANO),
+      response: data,
+    });
     throw new Error(`token issue failed: ${JSON.stringify(data)}`);
   }
   cachedToken = {
