@@ -498,6 +498,111 @@ export default function Trades() {
             </Table>
           </Card>
         </TabsContent>
+
+        {/* LONGTERM HOLDINGS */}
+        <TabsContent value="longterm" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div className="text-xs text-muted-foreground">
+              장기 적립식 투자 종목입니다. 매수/매도 시 평균단가가 자동 계산됩니다.
+            </div>
+            <Button onClick={() => setNewHoldingOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> 새 종목 추가
+            </Button>
+          </div>
+
+          <Card className="glass-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8" />
+                  <TableHead>종목</TableHead>
+                  <TableHead>시장</TableHead>
+                  <TableHead className="text-right">평균매입가</TableHead>
+                  <TableHead className="text-right">총 매수</TableHead>
+                  <TableHead className="text-right">남은수량</TableHead>
+                  <TableHead>첫 매수일</TableHead>
+                  <TableHead className="text-right">매수횟수</TableHead>
+                  <TableHead className="text-right">액션</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">불러오는 중...</TableCell></TableRow>
+                ) : holdings.length === 0 ? (
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">장기투자 종목을 추가해주세요</TableCell></TableRow>
+                ) : holdings.map((h) => {
+                  const buys = ltBuys.filter(b => b.holding_id === h.id);
+                  const sells = ltSells.filter(s => s.holding_id === h.id);
+                  const isOpen = expanded[`lt-${h.id}`];
+                  return (
+                    <Fragment key={h.id}>
+                      <TableRow>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggle(`lt-${h.id}`)}>
+                            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </Button>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{h.name}</div>
+                          <div className="text-xs text-muted-foreground">{h.ticker}</div>
+                        </TableCell>
+                        <TableCell><MarketBadge market={h.market} /></TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtNum(Number(h.avg_entry_price))}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtNum(Number(h.total_quantity))}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium text-secondary">{fmtNum(Number(h.remaining_quantity))}</TableCell>
+                        <TableCell className="text-sm">{h.first_buy_date}</TableCell>
+                        <TableCell className="text-right tabular-nums">{buys.length}</TableCell>
+                        <TableCell className="text-right space-x-1">
+                          <Button size="sm" variant="outline" onClick={() => setBuyTarget(h)}>
+                            <ArrowUpRight className="h-3 w-3 mr-1" />추가매수
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setSellTarget(h)} disabled={h.remaining_quantity <= 0}>
+                            <ArrowDownRight className="h-3 w-3 mr-1" />매도
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {isOpen && (buys.length > 0 || sells.length > 0) && (
+                        <TableRow className="bg-muted/10">
+                          <TableCell />
+                          <TableCell colSpan={8}>
+                            <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                              <BarChart3 className="h-3 w-3" /> 매수/매도 히스토리
+                            </div>
+                            <div className="space-y-1">
+                              {buys.map((b, i) => (
+                                <div key={b.id} className="grid grid-cols-5 gap-2 text-sm tabular-nums">
+                                  <div className="text-secondary">매수 {i + 1}</div>
+                                  <div>{b.buy_date}</div>
+                                  <div>가격 {fmtNum(Number(b.buy_price))}</div>
+                                  <div>수량 {fmtNum(Number(b.buy_quantity))}</div>
+                                  <div className="text-muted-foreground truncate">{b.memo || ""}</div>
+                                </div>
+                              ))}
+                              {sells.map((s, i) => {
+                                const cls = s.realized_pnl > 0 ? "text-primary" : s.realized_pnl < 0 ? "text-destructive" : "";
+                                return (
+                                  <div key={s.id} className="grid grid-cols-5 gap-2 text-sm tabular-nums">
+                                    <div className="text-destructive">매도 {i + 1}</div>
+                                    <div>{s.sell_date}</div>
+                                    <div>가격 {fmtNum(Number(s.sell_price))}</div>
+                                    <div>수량 {fmtNum(Number(s.sell_quantity))}</div>
+                                    <div className={cls}>
+                                      {s.realized_pnl >= 0 ? "+" : ""}{fmtNum(Math.round(Number(s.realized_pnl)))} ({Number(s.pnl_rate).toFixed(2)}%)
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       <NewTradeDialog open={openNew} onOpenChange={setOpenNew} onSaved={load} />
@@ -507,6 +612,9 @@ export default function Trades() {
         onOpenChange={(o) => !o && setCloseTarget(null)}
         onSaved={load}
       />
+      <NewHoldingDialog open={newHoldingOpen} onOpenChange={setNewHoldingOpen} onSaved={load} />
+      <AddBuyDialog holding={buyTarget} onOpenChange={(o) => !o && setBuyTarget(null)} onSaved={load} />
+      <SellHoldingDialog holding={sellTarget} onOpenChange={(o) => !o && setSellTarget(null)} onSaved={load} />
     </div>
   );
 }
