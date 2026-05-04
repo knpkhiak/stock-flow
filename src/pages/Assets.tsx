@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, TrendingUp, Wallet, PiggyBank, Banknote } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, TrendingUp, Wallet, PiggyBank, Banknote, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SnapshotDialog from "@/components/assets/SnapshotDialog";
 import CashDialog from "@/components/cash/CashDialog";
+import MarketSessionBadge from "@/components/MarketSessionBadge";
+import { getKisEnv } from "@/pages/Settings";
 import { fmtKRW, fmtSignedKRW, fmtPct, fmtCompactKRW } from "@/lib/format";
 import {
   PieChart, Pie, Cell, Tooltip as RTooltip, ResponsiveContainer,
