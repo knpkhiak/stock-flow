@@ -1,4 +1,4 @@
-import { Home, Lightbulb, LineChart, Wallet } from "lucide-react";
+import { Home, Lightbulb, LineChart, Wallet, Settings } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -10,6 +10,7 @@ const items = [
   { title: "아이디어 노트", url: "/ideas", icon: Lightbulb },
   { title: "매매기록", url: "/trades", icon: LineChart },
   { title: "자산관리", url: "/assets", icon: Wallet },
+  { title: "API 설정", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
