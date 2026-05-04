@@ -7,12 +7,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, RefreshCw, ArrowUpRight, ArrowDownRight, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import NewTradeDialog from "@/components/trades/NewTradeDialog";
 import CloseTradeDialog from "@/components/trades/CloseTradeDialog";
 import MarketBadge from "@/components/trades/MarketBadge";
 import { marketColorVar } from "@/components/trades/marketStyle";
+import { NewHoldingDialog, AddBuyDialog, SellHoldingDialog } from "@/components/longterm/LongtermDialogs";
+import type { LongtermHolding, LongtermBuy, LongtermSell } from "@/types/longterm";
 
 export interface Trade {
   id: string;
@@ -79,10 +81,16 @@ type Granularity = "month" | "quarter" | "year" | "all";
 export default function Trades() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [closes, setCloses] = useState<TradeClose[]>([]);
+  const [holdings, setHoldings] = useState<LongtermHolding[]>([]);
+  const [ltBuys, setLtBuys] = useState<LongtermBuy[]>([]);
+  const [ltSells, setLtSells] = useState<LongtermSell[]>([]);
   const [loading, setLoading] = useState(true);
   const [openNew, setOpenNew] = useState(false);
   const [closeTarget, setCloseTarget] = useState<Trade | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [newHoldingOpen, setNewHoldingOpen] = useState(false);
+  const [buyTarget, setBuyTarget] = useState<LongtermHolding | null>(null);
+  const [sellTarget, setSellTarget] = useState<LongtermHolding | null>(null);
 
   // history filter
   const now = new Date();
@@ -93,14 +101,20 @@ export default function Trades() {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: t, error: e1 }, { data: c, error: e2 }] = await Promise.all([
+    const [{ data: t, error: e1 }, { data: c, error: e2 }, { data: h }, { data: lb }, { data: ls }] = await Promise.all([
       supabase.from("trades").select("*").order("created_at", { ascending: false }),
       supabase.from("trade_closes").select("*").order("close_date", { ascending: true }),
+      supabase.from("longterm_holdings").select("*").order("created_at", { ascending: false }),
+      supabase.from("longterm_buys").select("*").order("buy_date", { ascending: true }),
+      supabase.from("longterm_sells").select("*").order("sell_date", { ascending: true }),
     ]);
     if (e1) toast.error(e1.message);
     if (e2) toast.error(e2.message);
     setTrades((t || []) as unknown as Trade[]);
     setCloses((c || []) as unknown as TradeClose[]);
+    setHoldings((h || []) as unknown as LongtermHolding[]);
+    setLtBuys((lb || []) as unknown as LongtermBuy[]);
+    setLtSells((ls || []) as unknown as LongtermSell[]);
     setLoading(false);
   };
 
