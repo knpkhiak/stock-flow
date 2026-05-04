@@ -52,8 +52,9 @@ const ASSET_COLORS = {
   total: "hsl(210 40% 98%)",
 };
 
-const POS = "hsl(158 84% 39%)";
-const NEG = "hsl(0 72% 51%)";
+// Korean stock convention: 빨강=수익, 파랑=손실
+const POS = "hsl(var(--profit))";
+const NEG = "hsl(var(--loss))";
 
 const PERIODS = [
   { k: "1m", label: "1개월", days: 30 },
