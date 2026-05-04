@@ -406,7 +406,7 @@ export default function Trades() {
                         </TableCell>
                         {/* 진입 */}
                         <TableCell className="text-sm">
-                          <div>{t.entry_date.replaceAll("-", ".")}</div>
+                          <div>{t.entry_date.replace(/-/g, ".")}</div>
                           <div className={`text-xs font-medium ${holdingClass(days)} flex items-center gap-1`}>
                             {days > 30 && <AlertTriangle className="h-3 w-3" />}
                             D+{days}
@@ -628,7 +628,7 @@ export default function Trades() {
                           <div className="mt-1"><StatusBadge status="CLOSED" /></div>
                         </TableCell>
                         <TableCell className="text-sm">
-                          <div>{t.entry_date.replaceAll("-", ".")} ~ {lastClose.replaceAll("-", ".")}</div>
+                          <div>{t.entry_date.replace(/-/g, ".")} ~ {lastClose.replace(/-/g, ".")}</div>
                           <div className="text-xs text-muted-foreground">총 {periodDays}일</div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -900,7 +900,7 @@ function ExpandedSections({
               ) : sortedBuys.map((b, i) => (
                 <tr key={b.id} className="border-t border-border tabular-nums">
                   <td className="p-2">{i + 1}차</td>
-                  <td className="p-2">{b.buy_date.replaceAll("-", ".")}</td>
+                  <td className="p-2">{b.buy_date.replace(/-/g, ".")}</td>
                   <td className="p-2 text-right">{fmtNum(Number(b.buy_price))}</td>
                   <td className="p-2 text-right">{fmtNum(Number(b.buy_quantity))}주</td>
                   <td className="p-2 text-right">{fmtNum(Math.round(Number(b.buy_amount)))}</td>
@@ -953,7 +953,7 @@ function ExpandedSections({
                   return (
                     <tr key={c.id} className="border-t border-border tabular-nums">
                       <td className="p-2">{i + 1}차</td>
-                      <td className="p-2">{c.close_date.replaceAll("-", ".")}</td>
+                      <td className="p-2">{c.close_date.replace(/-/g, ".")}</td>
                       <td className={`p-2 ${holdingClass(c.holding_days)}`}>D+{c.holding_days}</td>
                       <td className="p-2 text-right">{fmtNum(Number(c.close_price))}</td>
                       <td className="p-2 text-right">{fmtNum(Number(c.close_quantity))}주</td>
@@ -1051,7 +1051,7 @@ function LongtermExpanded({
               ) : sortedBuys.map((b, i) => (
                 <tr key={b.id} className="border-t border-border tabular-nums">
                   <td className="p-2">{i + 1}차</td>
-                  <td className="p-2">{b.buy_date.replaceAll("-", ".")}</td>
+                  <td className="p-2">{b.buy_date.replace(/-/g, ".")}</td>
                   <td className="p-2 text-right">{fmtNum(Number(b.buy_price))}</td>
                   <td className="p-2 text-right">{fmtNum(Number(b.buy_quantity))}주</td>
                   <td className="p-2 text-right">
@@ -1094,7 +1094,7 @@ function LongtermExpanded({
                 {sortedSells.map((s, i) => (
                   <tr key={s.id} className="border-t border-border tabular-nums">
                     <td className="p-2">{i + 1}차</td>
-                    <td className="p-2">{s.sell_date.replaceAll("-", ".")}</td>
+                    <td className="p-2">{s.sell_date.replace(/-/g, ".")}</td>
                     <td className="p-2 text-right">{fmtNum(Number(s.sell_price))}</td>
                     <td className="p-2 text-right">{fmtNum(Number(s.sell_quantity))}주</td>
                     <td className={`p-2 text-right ${pnlClass(Number(s.realized_pnl))}`}>
