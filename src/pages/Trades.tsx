@@ -135,6 +135,44 @@ export default function Trades() {
     setLoading(false);
   };
 
+  const syncExecutions = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("kis-proxy", {
+        body: { action: "sync", env: getKisEnv(), lookback_days: 30 },
+      });
+      if (error) throw new Error(error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const r = data as {
+        considered: number;
+        inserted_buys: number;
+        inserted_closes: number;
+        new_trades: number;
+        closed_trades: number;
+        duplicates: number;
+        errors: string[];
+      };
+      const summary = `매수 +${r.inserted_buys} / 청산 +${r.inserted_closes} / 신규 종목 ${r.new_trades} / 전량청산 ${r.closed_trades} (중복 ${r.duplicates})`;
+      if (r.errors?.length) {
+        toast.warning(`동기화 완료 (오류 ${r.errors.length}건): ${summary}`);
+        console.warn("sync errors", r.errors);
+      } else {
+        toast.success(`동기화 완료: ${summary}`);
+      }
+      localStorage.setItem("stock-flow-last-sync", new Date().toISOString());
+      // First successful sync also flips the initial-setup gate.
+      if (r.inserted_buys > 0 || r.inserted_closes > 0) {
+        setInitialSetup("completed");
+        setSetupStatus("completed");
+      }
+      await load();
+    } catch (e: any) {
+      toast.error(`동기화 실패: ${e.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   useEffect(() => { load(); }, []);
 
   const closesByTrade = useMemo(() => {
