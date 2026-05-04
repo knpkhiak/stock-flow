@@ -116,6 +116,101 @@ function PriceCell({ price, session }: { price: number | null; session: ReturnTy
   );
 }
 
+function StopLossCell({
+  tradeId,
+  value,
+  currentPrice,
+  onSaved,
+}: {
+  tradeId: string;
+  value: number | null;
+  currentPrice: number | null;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(value == null);
+  const [draft, setDraft] = useState<string>(value != null ? String(value) : "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setDraft(value != null ? String(value) : "");
+  }, [value, editing]);
+
+  const triggered = value != null && currentPrice != null && currentPrice <= value;
+
+  const save = async () => {
+    const num = Number(draft);
+    if (!draft || !Number.isFinite(num) || num <= 0) {
+      toast.error("스탑로스는 0보다 큰 숫자로 입력하세요");
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.from("trades").update({ stop_loss: num }).eq("id", tradeId);
+    setSaving(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setEditing(false);
+    onSaved();
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+        <Input
+          type="number"
+          inputMode="decimal"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape" && value != null) setEditing(false);
+          }}
+          autoFocus
+          disabled={saving}
+          className="h-7 w-24 text-right tabular-nums"
+          placeholder="필수"
+        />
+        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={save} disabled={saving}>
+          <Check className="h-3.5 w-3.5" />
+        </Button>
+        {value != null && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={() => setEditing(false)}
+            disabled={saving}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-center justify-end gap-1 cursor-pointer group"
+      onClick={(e) => {
+        e.stopPropagation();
+        setEditing(true);
+      }}
+      title="클릭하여 수정"
+    >
+      {triggered && <AlertTriangle className="h-3.5 w-3.5 text-profit animate-pulse" />}
+      <span
+        className={`tabular-nums text-sm group-hover:underline ${
+          triggered ? "text-profit font-semibold" : ""
+        }`}
+      >
+        {fmtNum(Number(value))}
+      </span>
+    </div>
+  );
+}
+
+
 type Granularity = "month" | "quarter" | "year" | "all";
 type MarketFilter = "all" | "국내" | "해외" | "암호화폐";
 
