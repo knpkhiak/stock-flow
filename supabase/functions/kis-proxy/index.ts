@@ -521,6 +521,16 @@ Deno.serve(async (req) => {
         });
       }
       payload = await inquirePrice(env, ticker);
+    } else if (action === "price_overseas") {
+      const ticker = String(body.ticker ?? "").trim().toUpperCase();
+      const excd = String(body.excd ?? "").trim().toUpperCase();
+      if (!ticker || !excd) {
+        return new Response(JSON.stringify({ error: "ticker and excd are required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      payload = await inquireOverseasPrice(env, excd, ticker);
     } else {
       return new Response(JSON.stringify({ error: `unknown action: ${action}` }), {
         status: 400,
