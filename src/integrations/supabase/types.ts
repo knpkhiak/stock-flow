@@ -358,6 +358,7 @@ export type Database = {
           remaining_quantity: number
           source: string
           status: string
+          stop_loss: number | null
           ticker: string
           total_quantity: number
           total_realized_pnl: number | null
@@ -376,6 +377,7 @@ export type Database = {
           remaining_quantity?: number
           source?: string
           status?: string
+          stop_loss?: number | null
           ticker: string
           total_quantity: number
           total_realized_pnl?: number | null
@@ -394,6 +396,7 @@ export type Database = {
           remaining_quantity?: number
           source?: string
           status?: string
+          stop_loss?: number | null
           ticker?: string
           total_quantity?: number
           total_realized_pnl?: number | null
