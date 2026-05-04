@@ -14,7 +14,9 @@ import CloseTradeDialog from "@/components/trades/CloseTradeDialog";
 import MarketBadge from "@/components/trades/MarketBadge";
 import { marketColorVar } from "@/components/trades/marketStyle";
 import { NewHoldingDialog, AddBuyDialog, SellHoldingDialog } from "@/components/longterm/LongtermDialogs";
+import ImportHoldingsDialog from "@/components/trades/ImportHoldingsDialog";
 import type { LongtermHolding, LongtermBuy, LongtermSell } from "@/types/longterm";
+import { Download } from "lucide-react";
 
 export interface Trade {
   id: string;
@@ -89,6 +91,7 @@ export default function Trades() {
   const [closeTarget, setCloseTarget] = useState<Trade | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [newHoldingOpen, setNewHoldingOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [buyTarget, setBuyTarget] = useState<LongtermHolding | null>(null);
   const [sellTarget, setSellTarget] = useState<LongtermHolding | null>(null);
 
@@ -227,7 +230,10 @@ export default function Trades() {
 
         {/* OPEN POSITIONS */}
         <TabsContent value="open" className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Download className="h-4 w-4 mr-1" /> 한투 보유종목 가져오기
+            </Button>
             <Button onClick={() => setOpenNew(true)}>
               <Plus className="h-4 w-4 mr-1" /> 새 포지션 열기
             </Button>
@@ -615,6 +621,12 @@ export default function Trades() {
       <NewHoldingDialog open={newHoldingOpen} onOpenChange={setNewHoldingOpen} onSaved={load} />
       <AddBuyDialog holding={buyTarget} onOpenChange={(o) => !o && setBuyTarget(null)} onSaved={load} />
       <SellHoldingDialog holding={sellTarget} onOpenChange={(o) => !o && setSellTarget(null)} onSaved={load} />
+      <ImportHoldingsDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSaved={load}
+        existingTickers={trades.filter(t => t.status !== "CLOSED").map(t => t.ticker)}
+      />
     </div>
   );
 }
