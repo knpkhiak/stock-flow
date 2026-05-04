@@ -12,6 +12,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { MARKETS } from "./marketStyle";
+import { MarketDot } from "./MarketBadge";
 
 interface Props {
   open: boolean;
@@ -22,23 +24,24 @@ interface Props {
 export default function NewTradeDialog({ open, onOpenChange, onSaved }: Props) {
   const [ticker, setTicker] = useState("");
   const [name, setName] = useState("");
-  const [market, setMarket] = useState("국내");
+  const [market, setMarket] = useState<string>("국내");
   const [entryDate, setEntryDate] = useState<Date | undefined>(new Date());
   const [entryPrice, setEntryPrice] = useState("");
-  const [quantity, setQuantity] = useState("");
+  const [totalQty, setTotalQty] = useState("");
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
     setTicker(""); setName(""); setMarket("국내"); setEntryDate(new Date());
-    setEntryPrice(""); setQuantity(""); setMemo("");
+    setEntryPrice(""); setTotalQty(""); setMemo("");
   };
 
   const submit = async () => {
-    if (!ticker.trim() || !name.trim() || !entryDate || !entryPrice || !quantity) {
+    if (!ticker.trim() || !name.trim() || !entryDate || !entryPrice || !totalQty) {
       toast.error("필수 항목을 모두 입력해주세요");
       return;
     }
+    const qty = Number(totalQty);
     setSaving(true);
     const { error } = await supabase.from("trades").insert({
       ticker: ticker.trim(),
@@ -47,7 +50,8 @@ export default function NewTradeDialog({ open, onOpenChange, onSaved }: Props) {
       status: "OPEN",
       entry_date: format(entryDate, "yyyy-MM-dd"),
       entry_price: Number(entryPrice),
-      quantity: Number(quantity),
+      total_quantity: qty,
+      remaining_quantity: qty,
       memo: memo.trim() || null,
     });
     setSaving(false);
@@ -78,9 +82,13 @@ export default function NewTradeDialog({ open, onOpenChange, onSaved }: Props) {
             <Select value={market} onValueChange={setMarket}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="국내">국내</SelectItem>
-                <SelectItem value="해외">해외</SelectItem>
-                <SelectItem value="암호화폐">암호화폐</SelectItem>
+                {MARKETS.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    <span className="flex items-center gap-2">
+                      <MarketDot market={m} /> {m}
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -104,8 +112,8 @@ export default function NewTradeDialog({ open, onOpenChange, onSaved }: Props) {
               <Input type="number" value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>수량 *</Label>
-              <Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <Label>총 수량 *</Label>
+              <Input type="number" value={totalQty} onChange={(e) => setTotalQty(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1">
