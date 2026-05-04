@@ -24,14 +24,47 @@ export function NewHoldingDialog({
   const [qty, setQty] = useState("");
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [livePrice, setLivePrice] = useState<number | null>(null);
 
   useEffect(() => {
-    if (open) { setTicker(""); setName(""); setMarket("국내"); setDate(today()); setPrice(""); setQty(""); setMemo(""); }
+    if (open) {
+      setTicker(""); setName(""); setMarket("국내"); setDate(today());
+      setPrice(""); setQty(""); setMemo("");
+      setVerified(false); setLivePrice(null);
+    }
   }, [open]);
+
+  useEffect(() => { setVerified(false); setLivePrice(null); }, [ticker]);
+
+  const verifyTicker = async () => {
+    const t = ticker.trim();
+    if (!t) { toast.error("티커를 입력해주세요"); return; }
+    setVerifying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("kis-proxy", {
+        body: { action: "price", env: "real", ticker: t },
+      });
+      if (error) throw new Error(error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const stck = Number((data as any)?.output?.stck_prpr);
+      if (!Number.isFinite(stck) || stck <= 0) throw new Error("유효한 가격을 받지 못했습니다");
+      setLivePrice(stck);
+      setVerified(true);
+      if (!name.trim()) setName(t);
+      toast.success(`종목 확인 완료 · 현재가 ${stck.toLocaleString()}`);
+    } catch (e: any) {
+      setVerified(false);
+      setLivePrice(null);
+      toast.error(`종목 확인 실패: ${e.message}`);
+    } finally { setVerifying(false); }
+  };
 
   const submit = async () => {
     const p = Number(price), q = Number(qty);
     if (!ticker || !name || !p || !q) { toast.error("필수 항목을 입력해주세요"); return; }
+    if (market === "국내" && !verified) { toast.error("국내 종목은 한투 API로 종목 확인이 필요합니다"); return; }
     setSaving(true);
     try {
       const { data: h, error: e1 } = await supabase.from("longterm_holdings").insert({
@@ -55,10 +88,24 @@ export function NewHoldingDialog({
       <DialogContent className="glass-card">
         <DialogHeader><DialogTitle>새 장기투자 종목 추가</DialogTitle></DialogHeader>
         <div className="grid gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5"><Label>티커</Label><Input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="AAPL" /></div>
-            <div className="grid gap-1.5"><Label>종목명</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="애플" /></div>
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+            <div className="grid gap-1.5">
+              <Label>티커</Label>
+              <Input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="010950" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>종목명</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="S-Oil" />
+            </div>
+            <Button type="button" variant="outline" onClick={verifyTicker} disabled={verifying || !ticker.trim()}>
+              {verifying ? "확인중..." : verified ? "✓ 확인됨" : "종목 확인"}
+            </Button>
           </div>
+          {verified && livePrice != null && (
+            <div className="rounded-md bg-secondary/10 border border-secondary/30 p-2 text-xs">
+              ✓ 한투 API 검증 완료 · 현재가 <span className="font-medium tabular-nums">{livePrice.toLocaleString()}</span>
+            </div>
+          )}
           <div className="grid gap-1.5">
             <Label>시장</Label>
             <Select value={market} onValueChange={setMarket}>
@@ -67,6 +114,9 @@ export function NewHoldingDialog({
                 {MARKETS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
               </SelectContent>
             </Select>
+            {market !== "국내" && (
+              <p className="text-xs text-muted-foreground">※ 해외/암호화폐는 현재 한투 API 검증이 지원되지 않습니다</p>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="grid gap-1.5"><Label>첫 매수일</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>

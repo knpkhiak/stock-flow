@@ -433,6 +433,9 @@ export default function Trades() {
         {/* OPEN POSITIONS */}
         <TabsContent value="open" className="space-y-4">
           <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Download className="h-4 w-4 mr-1" /> 한투 보유종목 가져오기
+            </Button>
             <Button variant="outline" onClick={syncExecutions} disabled={syncing}>
               <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} /> 체결내역 동기화
             </Button>
