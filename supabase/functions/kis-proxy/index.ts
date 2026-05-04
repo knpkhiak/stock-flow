@@ -24,16 +24,14 @@ async function getToken(env: "real" | "paper"): Promise<string> {
     return cachedToken.token;
   }
 
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    appkey: APP_KEY,
-    appsecret: APP_SECRET,
-  });
-
   const res = await fetch(`${base}/oauth2/tokenP`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-    body: body.toString(),
+    headers: { "Content-Type": "application/json; charset=UTF-8" },
+    body: JSON.stringify({
+      grant_type: "client_credentials",
+      appkey: APP_KEY,
+      appsecret: APP_SECRET,
+    }),
   });
   const data = await res.json();
   if (!res.ok || !data.access_token) {
