@@ -15,7 +15,7 @@ export const holdingClass = (d: number): string => {
 };
 
 export const fmtNum = (n: number): string =>
-  new Intl.NumberFormat("ko-KR").format(n);
+  new Intl.NumberFormat("ko-KR").format(Math.round(n));
 
 export const fmtSignedNum = (n: number): string =>
   `${pnlSign(n)}${fmtNum(Math.round(n))}`;
