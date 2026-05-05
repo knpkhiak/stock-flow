@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,10 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 
 export default function Login() {
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const location = useLocation();
+  const [mode, setMode] = useState<"login" | "signup">(
+    location.pathname === "/signup" ? "signup" : "login"
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
