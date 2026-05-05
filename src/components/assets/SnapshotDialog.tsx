@@ -23,11 +23,13 @@ export default function SnapshotDialog({
   onOpenChange,
   onSaved,
   initial,
+  liveDefaults,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSaved: () => void;
   initial?: Initial;
+  liveDefaults?: { trading: number; longterm: number; cash: number };
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const { user } = useAuth();
@@ -37,15 +39,17 @@ export default function SnapshotDialog({
   const [cash, setCash] = useState("");
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
+  const autofilled = !initial?.id && !!liveDefaults;
 
   useEffect(() => {
     if (open) {
       setDate(initial?.snapshot_date ?? today);
-      setTrading(initial?.trading_balance?.toString() ?? "");
-      setLongterm(initial?.longterm_balance?.toString() ?? "");
-      setCash(initial?.cash_balance?.toString() ?? "");
+      setTrading(initial?.trading_balance?.toString() ?? (liveDefaults ? String(Math.round(liveDefaults.trading)) : ""));
+      setLongterm(initial?.longterm_balance?.toString() ?? (liveDefaults ? String(Math.round(liveDefaults.longterm)) : ""));
+      setCash(initial?.cash_balance?.toString() ?? (liveDefaults ? String(Math.round(liveDefaults.cash)) : ""));
       setMemo(initial?.memo ?? "");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial]);
 
   const t = Number(trading) || 0;
@@ -105,6 +109,11 @@ export default function SnapshotDialog({
           <DialogTitle>{initial?.id ? "스냅샷 수정" : "오늘 자산 기록"}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4">
+          {autofilled && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-2 text-xs text-muted-foreground">
+              ✓ 한투 잔고·장기투자 평가액·최신 현금 잔액으로 자동 입력했습니다. 필요시 수정하세요.
+            </div>
+          )}
           <div className="grid gap-2">
             <Label>날짜</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />

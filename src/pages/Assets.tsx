@@ -19,6 +19,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { MARKETS, marketColorVar } from "@/components/trades/marketStyle";
 import MarketBadge from "@/components/trades/MarketBadge";
 import type { LongtermHolding, LongtermSell, CashTransaction } from "@/types/longterm";
+import { useAuth } from "@/hooks/useAuth";
+import { maybeCreateMonthlySnapshot } from "@/lib/autoSnapshot";
 
 type Snapshot = {
   id: string;
@@ -65,6 +67,7 @@ const PERIODS = [
 ] as const;
 
 export default function Assets() {
+  const { user } = useAuth();
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [closes, setCloses] = useState<TradeClose[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -129,6 +132,28 @@ export default function Assets() {
   };
 
   useEffect(() => { load(); syncKisBalance(); }, []);
+
+  // Monthly auto-snapshot: once per calendar month, after KIS + data are ready.
+  useEffect(() => {
+    if (!user || loading || !kisBalance) return;
+    const longtermBookValue = holdings.reduce(
+      (s, h) => s + Number(h.avg_entry_price) * Number(h.remaining_quantity),
+      0,
+    );
+    const latestCash = Number(cash[0]?.balance_after ?? 0);
+    maybeCreateMonthlySnapshot({
+      userId: user.id,
+      trading: kisBalance.total,
+      longterm: longtermBookValue,
+      cash: latestCash,
+    }).then((created) => {
+      if (created) {
+        toast.success("이번 달 자산 스냅샷이 자동으로 기록되었습니다");
+        load();
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, loading, kisBalance?.total]);
 
   const latest = snapshots[0];
   const prevMonth = useMemo(() => {
@@ -570,7 +595,24 @@ export default function Assets() {
         )}
       </Card>
 
-      <SnapshotDialog open={dlgOpen} onOpenChange={setDlgOpen} onSaved={load} initial={editing} />
+      <SnapshotDialog
+        open={dlgOpen}
+        onOpenChange={setDlgOpen}
+        onSaved={load}
+        initial={editing}
+        liveDefaults={
+          editing
+            ? undefined
+            : {
+                trading: kisBalance?.total ?? 0,
+                longterm: holdings.reduce(
+                  (s, h) => s + Number(h.avg_entry_price) * Number(h.remaining_quantity),
+                  0,
+                ),
+                cash: Number(cash[0]?.balance_after ?? 0),
+              }
+        }
+      />
     </div>
   );
 }
