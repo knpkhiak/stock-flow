@@ -19,6 +19,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { MARKETS, marketColorVar } from "@/components/trades/marketStyle";
 import MarketBadge from "@/components/trades/MarketBadge";
 import type { LongtermHolding, LongtermSell, CashTransaction } from "@/types/longterm";
+import { useAuth } from "@/hooks/useAuth";
+import { maybeCreateMonthlySnapshot } from "@/lib/autoSnapshot";
 
 type Snapshot = {
   id: string;
