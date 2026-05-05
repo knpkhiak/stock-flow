@@ -329,7 +329,11 @@ export default function Assets() {
                 <span className="text-muted-foreground">예수금</span>
                 <span className="num font-medium">{fmtKRW(kisBalance.cash)}</span>
               </div>
-              <div className="text-[10px] text-muted-foreground pt-1">한투 총평가 자동 동기화</div>
+              <div className="pt-1.5">
+                <span className="inline-flex items-center gap-1 rounded-md border border-secondary/30 bg-secondary/15 px-1.5 py-0.5 text-[10px] font-medium text-secondary">
+                  한투 자동 연동
+                </span>
+              </div>
             </div>
           ) : (
             <div className="text-xs text-muted-foreground mt-1">오픈 포지션 {openCount}건</div>
@@ -345,6 +349,7 @@ export default function Assets() {
           title="현금 자산"
           icon={<Banknote className="h-4 w-4" style={{ color: ASSET_COLORS.cash }} />}
           value={latest?.cash_balance ?? null}
+          subtitle="트레이딩 계좌 외 현금 (저축·비상금 등 — 한투 예수금은 트레이딩 자산에 포함)"
           onUpdate={() => { setEditing(latest); setDlgOpen(true); }}
         />
       </div>
