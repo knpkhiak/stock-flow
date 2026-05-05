@@ -67,6 +67,7 @@ const PERIODS = [
 ] as const;
 
 export default function Assets() {
+  const { user } = useAuth();
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [closes, setCloses] = useState<TradeClose[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
