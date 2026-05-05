@@ -595,7 +595,24 @@ export default function Assets() {
         )}
       </Card>
 
-      <SnapshotDialog open={dlgOpen} onOpenChange={setDlgOpen} onSaved={load} initial={editing} />
+      <SnapshotDialog
+        open={dlgOpen}
+        onOpenChange={setDlgOpen}
+        onSaved={load}
+        initial={editing}
+        liveDefaults={
+          editing
+            ? undefined
+            : {
+                trading: kisBalance?.total ?? 0,
+                longterm: holdings.reduce(
+                  (s, h) => s + Number(h.avg_entry_price) * Number(h.remaining_quantity),
+                  0,
+                ),
+                cash: Number(cash[0]?.balance_after ?? 0),
+              }
+        }
+      />
     </div>
   );
 }
