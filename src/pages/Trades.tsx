@@ -461,7 +461,10 @@ export default function Trades() {
                   <TableHead className="w-8" />
                   <TableHead>종목</TableHead>
                   <TableHead>진입</TableHead>
-                  <TableHead>진입가 / 현재가</TableHead>
+                  <TableHead>
+                    진입가 / 현재가
+                    <div className="text-[10px] font-normal text-muted-foreground">(전일 대비 등락률)</div>
+                  </TableHead>
                   <TableHead className="text-right">보유수량</TableHead>
                   <TableHead className="text-right">
                     스탑로스
@@ -473,7 +476,7 @@ export default function Trades() {
                   </TableHead>
                   <TableHead className="text-right">
                     평가손익
-                    <div className="text-[10px] font-normal text-muted-foreground">(미실현)</div>
+                    <div className="text-[10px] font-normal text-muted-foreground">(진입 대비)</div>
                   </TableHead>
                 </TableRow>
               </TableHeader>
