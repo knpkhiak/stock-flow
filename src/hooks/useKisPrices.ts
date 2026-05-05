@@ -4,6 +4,7 @@ import { getKisEnv } from "@/pages/Settings";
 
 interface PriceEntry {
   price: number | null;
+  prevDayChangeRate: number | null; // 전일 대비 등락률 (%)
   loading: boolean;
   fetchedAt: number;
 }
