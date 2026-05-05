@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { fmtKRW } from "@/lib/format";
+import { useAuth } from "@/hooks/useAuth";
 
 type Initial = {
   id?: string;
@@ -29,6 +30,7 @@ export default function SnapshotDialog({
   initial?: Initial;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+  const { user } = useAuth();
   const [date, setDate] = useState(today);
   const [trading, setTrading] = useState("");
   const [longterm, setLongterm] = useState("");
@@ -52,6 +54,7 @@ export default function SnapshotDialog({
   const total = t + l + c;
 
   const submit = async () => {
+    if (!user) { toast.error("로그인이 필요합니다"); return; }
     setSaving(true);
     try {
       const payload = {
@@ -81,7 +84,7 @@ export default function SnapshotDialog({
           const { error } = await supabase.from("asset_snapshots").update(payload).eq("id", existing.id);
           if (error) throw error;
         } else {
-          const { error } = await supabase.from("asset_snapshots").insert(payload);
+          const { error } = await supabase.from("asset_snapshots").insert({ ...payload, user_id: user.id });
           if (error) throw error;
         }
       }

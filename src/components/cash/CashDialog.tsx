@@ -7,11 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function CashDialog({
   open, onOpenChange, onSaved,
 }: { open: boolean; onOpenChange: (v: boolean) => void; onSaved: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
+  const { user } = useAuth();
   const [date, setDate] = useState(today);
   const [type, setType] = useState<"deposit" | "withdraw">("deposit");
   const [amount, setAmount] = useState("");
@@ -23,6 +25,7 @@ export default function CashDialog({
   }, [open]);
 
   const submit = async () => {
+    if (!user) { toast.error("로그인이 필요합니다"); return; }
     const amt = Number(amount);
     if (!amt || amt <= 0) { toast.error("금액을 입력해주세요"); return; }
     setSaving(true);
@@ -37,6 +40,7 @@ export default function CashDialog({
       const prev = Number(latest?.balance_after || 0);
       const balance_after = type === "deposit" ? prev + amt : prev - amt;
       const { error } = await supabase.from("cash_transactions").insert({
+        user_id: user.id,
         transaction_date: date, type, amount: amt, balance_after, memo: memo || null,
       });
       if (error) throw error;

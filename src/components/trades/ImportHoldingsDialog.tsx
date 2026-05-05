@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Download, RefreshCw } from "lucide-react";
 import { getKisEnv } from "@/pages/Settings";
+import { useAuth } from "@/hooks/useAuth";
 
 interface KisHolding {
   pdno: string;          // 종목코드
@@ -28,6 +29,7 @@ export default function ImportHoldingsDialog({
   onSaved: () => void;
   existingTickers: string[];
 }) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<KisHolding[]>([]);
   const [picked, setPicked] = useState<Record<string, boolean>>({});
@@ -70,6 +72,7 @@ export default function ImportHoldingsDialog({
   };
 
   const save = async () => {
+    if (!user) { toast.error("로그인이 필요합니다"); return; }
     const selected = items.filter((x) => picked[x.pdno]);
     if (selected.length === 0) {
       toast.error("가져올 종목을 선택해주세요");
@@ -82,6 +85,7 @@ export default function ImportHoldingsDialog({
         const qty = Number(x.hldg_qty);
         const price = Number(x.pchs_avg_pric);
         return {
+          user_id: user.id,
           ticker: x.pdno,
           name: x.prdt_name,
           market: "국내",
@@ -100,6 +104,7 @@ export default function ImportHoldingsDialog({
       if (error) throw new Error(error.message);
 
       const buyRows = (inserted ?? []).map((t) => ({
+        user_id: user.id,
         trade_id: t.id,
         buy_date: t.entry_date,
         buy_price: Number(t.entry_price),
