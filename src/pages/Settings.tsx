@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CheckCircle2, Circle, AlertCircle, RefreshCw, KeyRound, Info, ShieldCheck, AlertTriangle, Trash2 } from "lucide-react";
 import { setInitialSetup } from "@/lib/initialSetup";
+import { useAuth } from "@/hooks/useAuth";
 
 const ENV_KEY = "stock-flow-kis-env";
 const STATUS_KEY = "stock-flow-kis-status";
@@ -29,6 +30,7 @@ export function getKisStatus(): "connected" | "expired" | "none" {
 }
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const [env, setEnv] = useState<"real" | "paper">("real");
   const [status, setStatus] = useState<"connected" | "expired" | "none">("none");
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -94,10 +96,12 @@ export default function SettingsPage() {
         if (error) throw new Error(`${table}: ${error.message}`);
       }
       // kis_sync_log: insert one fresh row at "now" so future sync ignores backlog.
-      const { error: insErr } = await supabase
-        .from("kis_sync_log")
-        .insert({ last_sync_at: new Date().toISOString() });
-      if (insErr) throw new Error(`kis_sync_log seed: ${insErr.message}`);
+      if (user) {
+        const { error: insErr } = await supabase
+          .from("kis_sync_log")
+          .insert({ user_id: user.id, last_sync_at: new Date().toISOString() });
+        if (insErr) throw new Error(`kis_sync_log seed: ${insErr.message}`);
+      }
 
       // Reset initial-setup flag → pending. KIS keys / env preserved by design.
       setInitialSetup("pending");
