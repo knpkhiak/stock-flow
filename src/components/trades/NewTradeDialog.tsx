@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { MARKETS } from "./marketStyle";
 import { MarketDot } from "./MarketBadge";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
   open: boolean;
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export default function NewTradeDialog({ open, onOpenChange, onSaved }: Props) {
+  const { user } = useAuth();
   const [ticker, setTicker] = useState("");
   const [name, setName] = useState("");
   const [market, setMarket] = useState<string>("국내");
@@ -37,6 +39,7 @@ export default function NewTradeDialog({ open, onOpenChange, onSaved }: Props) {
   };
 
   const submit = async () => {
+    if (!user) { toast.error("로그인이 필요합니다"); return; }
     if (!ticker.trim() || !name.trim() || !entryDate || !entryPrice || !totalQty) {
       toast.error("필수 항목을 모두 입력해주세요");
       return;
@@ -48,6 +51,7 @@ export default function NewTradeDialog({ open, onOpenChange, onSaved }: Props) {
     const { data: inserted, error } = await supabase
       .from("trades")
       .insert({
+        user_id: user.id,
         ticker: ticker.trim(),
         name: name.trim(),
         market,
@@ -67,6 +71,7 @@ export default function NewTradeDialog({ open, onOpenChange, onSaved }: Props) {
     }
     // 1st buy lot — keeps the buy-history view consistent for all trades.
     const { error: buyErr } = await supabase.from("trade_buys").insert({
+      user_id: user.id,
       trade_id: inserted.id,
       buy_date: dateStr,
       buy_price: price,

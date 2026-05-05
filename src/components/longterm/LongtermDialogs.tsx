@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { MARKETS } from "@/components/trades/marketStyle";
 import type { LongtermHolding } from "@/types/longterm";
+import { useAuth } from "@/hooks/useAuth";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -28,6 +29,7 @@ const OVERSEAS_EXCHANGES = [
 export function NewHoldingDialog({
   open, onOpenChange, onSaved,
 }: { open: boolean; onOpenChange: (v: boolean) => void; onSaved: () => void }) {
+  const { user } = useAuth();
   const [ticker, setTicker] = useState("");
   const [name, setName] = useState("");
   const [market, setMarket] = useState<string>("국내");
@@ -89,18 +91,21 @@ export function NewHoldingDialog({
   };
 
   const submit = async () => {
+    if (!user) { toast.error("로그인이 필요합니다"); return; }
     const p = Number(price), q = Number(qty);
     if (!ticker || !name || !p || !q) { toast.error("필수 항목을 입력해주세요"); return; }
     if (market !== "암호화폐" && !verified) { toast.error("한투 API로 종목 확인이 필요합니다"); return; }
     setSaving(true);
     try {
       const { data: h, error: e1 } = await supabase.from("longterm_holdings").insert({
+        user_id: user.id,
         ticker, name, market,
         avg_entry_price: p, total_quantity: q, remaining_quantity: q,
         first_buy_date: date, memo: memo || null,
       }).select("id").single();
       if (e1) throw e1;
       const { error: e2 } = await supabase.from("longterm_buys").insert({
+        user_id: user.id,
         holding_id: h.id, buy_date: date, buy_price: p, buy_quantity: q, memo: memo || null,
       });
       if (e2) throw e2;
@@ -176,6 +181,7 @@ export function NewHoldingDialog({
 export function AddBuyDialog({
   holding, onOpenChange, onSaved,
 }: { holding: LongtermHolding | null; onOpenChange: (v: boolean) => void; onSaved: () => void }) {
+  const { user } = useAuth();
   const [date, setDate] = useState(today());
   const [price, setPrice] = useState("");
   const [qty, setQty] = useState("");
@@ -187,12 +193,14 @@ export function AddBuyDialog({
 
   const submit = async () => {
     if (!holding) return;
+    if (!user) { toast.error("로그인이 필요합니다"); return; }
     const p = Number(price), q = Number(qty);
     if (!p || !q) { toast.error("매수가/수량을 입력해주세요"); return; }
     setSaving(true);
     try {
       const newAvg = (holding.avg_entry_price * holding.total_quantity + p * q) / (holding.total_quantity + q);
       const { error: e1 } = await supabase.from("longterm_buys").insert({
+        user_id: user.id,
         holding_id: holding.id, buy_date: date, buy_price: p, buy_quantity: q, memo: memo || null,
       });
       if (e1) throw e1;
@@ -238,6 +246,7 @@ export function AddBuyDialog({
 export function SellHoldingDialog({
   holding, onOpenChange, onSaved,
 }: { holding: LongtermHolding | null; onOpenChange: (v: boolean) => void; onSaved: () => void }) {
+  const { user } = useAuth();
   const [date, setDate] = useState(today());
   const [price, setPrice] = useState("");
   const [qty, setQty] = useState("");
@@ -249,6 +258,7 @@ export function SellHoldingDialog({
 
   const submit = async () => {
     if (!holding) return;
+    if (!user) { toast.error("로그인이 필요합니다"); return; }
     const p = Number(price), q = Number(qty);
     if (!p || !q) { toast.error("매도가/수량을 입력해주세요"); return; }
     if (q > holding.remaining_quantity) { toast.error("보유수량을 초과합니다"); return; }
@@ -257,6 +267,7 @@ export function SellHoldingDialog({
       const realized = (p - holding.avg_entry_price) * q;
       const rate = ((p - holding.avg_entry_price) / holding.avg_entry_price) * 100;
       const { error: e1 } = await supabase.from("longterm_sells").insert({
+        user_id: user.id,
         holding_id: holding.id, sell_date: date, sell_price: p, sell_quantity: q,
         realized_pnl: realized, pnl_rate: rate, memo: memo || null,
       });

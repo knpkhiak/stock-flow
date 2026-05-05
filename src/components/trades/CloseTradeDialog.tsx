@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Trade, TradeClose } from "@/pages/Trades";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
   trade: Trade | null;
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function CloseTradeDialog({ trade, closes, onOpenChange, onSaved }: Props) {
+  const { user } = useAuth();
   const remaining = trade ? Number(trade.remaining_quantity) : 0;
 
   const [exitDate, setExitDate] = useState<Date | undefined>(new Date());
@@ -40,6 +42,7 @@ export default function CloseTradeDialog({ trade, closes, onOpenChange, onSaved 
   }, [trade?.id]);
 
   const submit = async () => {
+    if (!user) { toast.error("로그인이 필요합니다"); return; }
     if (!trade || !exitDate || !exitPrice || !qty) {
       toast.error("청산일, 청산가, 수량을 입력해주세요");
       return;
@@ -57,6 +60,7 @@ export default function CloseTradeDialog({ trade, closes, onOpenChange, onSaved 
     setSaving(true);
 
     const { error: insErr } = await supabase.from("trade_closes").insert({
+      user_id: user.id,
       trade_id: trade.id,
       close_date: format(exitDate, "yyyy-MM-dd"),
       close_price: ep,

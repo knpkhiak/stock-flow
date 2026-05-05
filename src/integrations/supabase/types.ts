@@ -25,6 +25,7 @@ export type Database = {
           source: string
           total_balance: number
           trading_balance: number
+          user_id: string
         }
         Insert: {
           cash_balance?: number
@@ -36,6 +37,7 @@ export type Database = {
           source?: string
           total_balance?: number
           trading_balance?: number
+          user_id?: string
         }
         Update: {
           cash_balance?: number
@@ -47,6 +49,7 @@ export type Database = {
           source?: string
           total_balance?: number
           trading_balance?: number
+          user_id?: string
         }
         Relationships: []
       }
@@ -59,6 +62,7 @@ export type Database = {
           memo: string | null
           transaction_date: string
           type: string
+          user_id: string
         }
         Insert: {
           amount: number
@@ -68,6 +72,7 @@ export type Database = {
           memo?: string | null
           transaction_date: string
           type: string
+          user_id?: string
         }
         Update: {
           amount?: number
@@ -77,6 +82,7 @@ export type Database = {
           memo?: string | null
           transaction_date?: string
           type?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -86,18 +92,21 @@ export type Database = {
           id: string
           last_processed_order_id: string | null
           last_sync_at: string
+          user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           last_processed_order_id?: string | null
           last_sync_at?: string
+          user_id?: string
         }
         Update: {
           created_at?: string
           id?: string
           last_processed_order_id?: string | null
           last_sync_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -131,6 +140,7 @@ export type Database = {
           holding_id: string
           id: string
           memo: string | null
+          user_id: string
         }
         Insert: {
           buy_date: string
@@ -140,6 +150,7 @@ export type Database = {
           holding_id: string
           id?: string
           memo?: string | null
+          user_id?: string
         }
         Update: {
           buy_date?: string
@@ -149,6 +160,7 @@ export type Database = {
           holding_id?: string
           id?: string
           memo?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -172,6 +184,7 @@ export type Database = {
           remaining_quantity: number
           ticker: string
           total_quantity: number
+          user_id: string
         }
         Insert: {
           avg_entry_price?: number
@@ -184,6 +197,7 @@ export type Database = {
           remaining_quantity?: number
           ticker: string
           total_quantity?: number
+          user_id?: string
         }
         Update: {
           avg_entry_price?: number
@@ -196,6 +210,7 @@ export type Database = {
           remaining_quantity?: number
           ticker?: string
           total_quantity?: number
+          user_id?: string
         }
         Relationships: []
       }
@@ -210,6 +225,7 @@ export type Database = {
           sell_date: string
           sell_price: number
           sell_quantity: number
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -221,6 +237,7 @@ export type Database = {
           sell_date: string
           sell_price: number
           sell_quantity: number
+          user_id?: string
         }
         Update: {
           created_at?: string
@@ -232,6 +249,7 @@ export type Database = {
           sell_date?: string
           sell_price?: number
           sell_quantity?: number
+          user_id?: string
         }
         Relationships: [
           {
@@ -255,6 +273,7 @@ export type Database = {
           kis_order_id: string | null
           source: string
           trade_id: string
+          user_id: string
         }
         Insert: {
           buy_amount: number
@@ -267,6 +286,7 @@ export type Database = {
           kis_order_id?: string | null
           source?: string
           trade_id: string
+          user_id?: string
         }
         Update: {
           buy_amount?: number
@@ -279,6 +299,7 @@ export type Database = {
           kis_order_id?: string | null
           source?: string
           trade_id?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -304,6 +325,7 @@ export type Database = {
           realized_pnl: number
           source: string
           trade_id: string
+          user_id: string
         }
         Insert: {
           close_date: string
@@ -318,6 +340,7 @@ export type Database = {
           realized_pnl: number
           source?: string
           trade_id: string
+          user_id?: string
         }
         Update: {
           close_date?: string
@@ -332,6 +355,7 @@ export type Database = {
           realized_pnl?: number
           source?: string
           trade_id?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -362,6 +386,7 @@ export type Database = {
           ticker: string
           total_quantity: number
           total_realized_pnl: number | null
+          user_id: string
         }
         Insert: {
           avg_close_price?: number | null
@@ -381,6 +406,7 @@ export type Database = {
           ticker: string
           total_quantity: number
           total_realized_pnl?: number | null
+          user_id?: string
         }
         Update: {
           avg_close_price?: number | null
@@ -400,6 +426,7 @@ export type Database = {
           ticker?: string
           total_quantity?: number
           total_realized_pnl?: number | null
+          user_id?: string
         }
         Relationships: []
       }
