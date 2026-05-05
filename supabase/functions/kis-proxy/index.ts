@@ -569,9 +569,14 @@ Deno.serve(async (req) => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("kis-proxy error:", msg);
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // KIS rate-limit (EGW00201) → return 200 with error so frontend doesn't crash.
+    const isRateLimit = /EGW00201|초당 거래건수/.test(msg);
+    return new Response(
+      JSON.stringify({ error: msg, rate_limited: isRateLimit }),
+      {
+        status: isRateLimit ? 200 : 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });
