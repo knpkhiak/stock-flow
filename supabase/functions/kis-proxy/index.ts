@@ -252,7 +252,7 @@ interface SyncResult {
   last_sync_at: string;
 }
 
-async function runSync(env: "real" | "paper", lookbackDays: number): Promise<SyncResult> {
+async function runSync(env: "real" | "paper", lookbackDays: number, userId: string): Promise<SyncResult> {
   const supa = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const result: SyncResult = {
     considered: 0,
@@ -266,10 +266,11 @@ async function runSync(env: "real" | "paper", lookbackDays: number): Promise<Syn
     last_sync_at: new Date().toISOString(),
   };
 
-  // 1) cutoff = last_sync_at (or epoch if none)
+  // 1) cutoff = last_sync_at for THIS user (or epoch if none)
   const { data: logRows } = await supa
     .from("kis_sync_log")
     .select("id, last_sync_at")
+    .eq("user_id", userId)
     .order("last_sync_at", { ascending: false })
     .limit(1);
   const lastSyncAt = logRows?.[0]?.last_sync_at ? new Date(logRows[0].last_sync_at).getTime() : 0;
@@ -316,10 +317,11 @@ async function runSync(env: "real" | "paper", lookbackDays: number): Promise<Syn
         continue;
       }
 
-      // Find currently-open trade for this ticker
+      // Find currently-open trade for this ticker (this user)
       const { data: openTrades } = await supa
         .from("trades")
         .select("id, total_quantity, remaining_quantity, entry_price, entry_date, status")
+        .eq("user_id", userId)
         .eq("ticker", e.pdno)
         .in("status", ["OPEN", "PARTIAL"])
         .order("created_at", { ascending: true })
@@ -331,6 +333,7 @@ async function runSync(env: "real" | "paper", lookbackDays: number): Promise<Syn
         const { data: newTrade, error: tErr } = await supa
           .from("trades")
           .insert({
+            user_id: userId,
             ticker: e.pdno,
             name: e.prdt_name ?? e.pdno,
             market: "국내",
@@ -349,6 +352,7 @@ async function runSync(env: "real" | "paper", lookbackDays: number): Promise<Syn
           continue;
         }
         const { error: bErr } = await supa.from("trade_buys").insert({
+          user_id: userId,
           trade_id: newTrade.id,
           buy_date: tradeDate,
           buy_price: price,
@@ -372,6 +376,7 @@ async function runSync(env: "real" | "paper", lookbackDays: number): Promise<Syn
         const newAvg = (oldAvg * oldQty + price * qty) / newQty;
 
         const { error: bErr } = await supa.from("trade_buys").insert({
+          user_id: userId,
           trade_id: openTrade.id,
           buy_date: tradeDate,
           buy_price: price,
@@ -415,6 +420,7 @@ async function runSync(env: "real" | "paper", lookbackDays: number): Promise<Syn
       const { data: openTrades } = await supa
         .from("trades")
         .select("id, entry_price, entry_date, remaining_quantity, total_realized_pnl, status")
+        .eq("user_id", userId)
         .eq("ticker", e.pdno)
         .in("status", ["OPEN", "PARTIAL"])
         .order("created_at", { ascending: true })
@@ -430,6 +436,7 @@ async function runSync(env: "real" | "paper", lookbackDays: number): Promise<Syn
       const holdingDays = daysBetween(openTrade.entry_date as string, tradeDate);
 
       const { error: cErr } = await supa.from("trade_closes").insert({
+        user_id: userId,
         trade_id: openTrade.id,
         close_date: tradeDate,
         close_price: price,
@@ -465,7 +472,7 @@ async function runSync(env: "real" | "paper", lookbackDays: number): Promise<Syn
     }
   }
 
-  // 4) advance kis_sync_log cursor
+  // 4) advance kis_sync_log cursor (per-user)
   const nowIso = new Date().toISOString();
   if (logRows && logRows.length > 0) {
     await supa
@@ -473,7 +480,7 @@ async function runSync(env: "real" | "paper", lookbackDays: number): Promise<Syn
       .update({ last_sync_at: nowIso })
       .eq("id", logRows[0].id);
   } else {
-    await supa.from("kis_sync_log").insert({ last_sync_at: nowIso });
+    await supa.from("kis_sync_log").insert({ user_id: userId, last_sync_at: nowIso });
   }
   result.last_sync_at = nowIso;
   return result;
@@ -489,6 +496,24 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    // === Authenticate caller via JWT ===
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!jwt) {
+      return new Response(JSON.stringify({ error: "Unauthorized: missing token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: userData, error: userErr } = await adminClient.auth.getUser(jwt);
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized: invalid token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = userData.user.id;
 
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const action = body.action ?? new URL(req.url).searchParams.get("action") ?? "test";
@@ -511,7 +536,7 @@ Deno.serve(async (req) => {
       payload = await inquireExecutions(env, fromDate, toDate);
     } else if (action === "sync") {
       const lookback = Math.max(1, Math.min(90, Number(body.lookback_days ?? 30)));
-      payload = await runSync(env, lookback);
+      payload = await runSync(env, lookback, userId);
     } else if (action === "price") {
       const ticker = String(body.ticker ?? "").trim();
       if (!ticker) {
