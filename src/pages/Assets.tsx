@@ -454,8 +454,13 @@ export default function Assets() {
 
       {/* Realized PnL */}
       <Card className="glass-card p-6">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h2 className="text-lg font-semibold">실현손익 추이</h2>
+        <div className="flex items-start justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <h2 className="text-lg font-semibold">트레이딩 손익 추이 (실현)</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              MTS 입출금 제외, 매매에 의한 실현손익만 집계
+            </p>
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Tabs value={pnlGran} onValueChange={(v) => setPnlGran(v as any)}>
               <TabsList>
