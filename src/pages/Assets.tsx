@@ -133,6 +133,28 @@ export default function Assets() {
 
   useEffect(() => { load(); syncKisBalance(); }, []);
 
+  // Monthly auto-snapshot: once per calendar month, after KIS + data are ready.
+  useEffect(() => {
+    if (!user || loading || !kisBalance) return;
+    const longtermBookValue = holdings.reduce(
+      (s, h) => s + Number(h.avg_entry_price) * Number(h.remaining_quantity),
+      0,
+    );
+    const latestCash = Number(cash[0]?.balance_after ?? 0);
+    maybeCreateMonthlySnapshot({
+      userId: user.id,
+      trading: kisBalance.total,
+      longterm: longtermBookValue,
+      cash: latestCash,
+    }).then((created) => {
+      if (created) {
+        toast.success("이번 달 자산 스냅샷이 자동으로 기록되었습니다");
+        load();
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, loading, kisBalance?.total]);
+
   const latest = snapshots[0];
   const prevMonth = useMemo(() => {
     if (!latest) return null;
