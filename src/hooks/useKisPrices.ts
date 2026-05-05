@@ -47,21 +47,24 @@ export function useKisPrices(tickers: string[]) {
     let cancelled = false;
     (async () => {
       const env = getKisEnv();
-      const results = await Promise.all(
-        need.map(async (ticker) => {
-          try {
-            const { data, error } = await supabase.functions.invoke("kis-proxy", {
-              body: { action: "price", env, ticker },
-            });
-            if (error) throw new Error(error.message);
-            if ((data as any)?.error) throw new Error((data as any).error);
-            const stck = Number((data as any)?.output?.stck_prpr);
-            return { ticker, price: Number.isFinite(stck) ? stck : null };
-          } catch {
-            return { ticker, price: null };
-          }
-        }),
-      );
+      // Serial fetch w/ small delay to respect KIS rate limit (real: ~20/s, paper: ~2/s).
+      const results: { ticker: string; price: number | null }[] = [];
+      for (const ticker of need) {
+        if (cancelled) return;
+        try {
+          const { data, error } = await supabase.functions.invoke("kis-proxy", {
+            body: { action: "price", env, ticker },
+          });
+          if (error) throw new Error(error.message);
+          if ((data as any)?.error) throw new Error((data as any).error);
+          const stck = Number((data as any)?.output?.stck_prpr);
+          results.push({ ticker, price: Number.isFinite(stck) ? stck : null });
+        } catch {
+          results.push({ ticker, price: null });
+        }
+        // Throttle: 150ms between requests
+        await new Promise((r) => setTimeout(r, 150));
+      }
       if (cancelled) return;
       const stamped = Date.now();
       const updates: Record<string, PriceEntry> = {};
