@@ -4,6 +4,7 @@ import { getKisEnv } from "@/pages/Settings";
 
 interface PriceEntry {
   price: number | null;
+  prevDayChangeRate: number | null; // 전일 대비 등락률 (%)
   loading: boolean;
   fetchedAt: number;
 }
@@ -40,7 +41,7 @@ export function useKisPrices(tickers: string[]) {
     // Mark loading
     setPrices((p) => {
       const next = { ...p };
-      for (const t of need) next[t] = { price: null, loading: true, fetchedAt: 0 };
+      for (const t of need) next[t] = { price: null, prevDayChangeRate: null, loading: true, fetchedAt: 0 };
       return next;
     });
 
@@ -48,7 +49,7 @@ export function useKisPrices(tickers: string[]) {
     (async () => {
       const env = getKisEnv();
       // Serial fetch w/ small delay to respect KIS rate limit (real: ~20/s, paper: ~2/s).
-      const results: { ticker: string; price: number | null }[] = [];
+      const results: { ticker: string; price: number | null; prevDayChangeRate: number | null }[] = [];
       for (const ticker of need) {
         if (cancelled) return;
         try {
@@ -57,10 +58,16 @@ export function useKisPrices(tickers: string[]) {
           });
           if (error) throw new Error(error.message);
           if ((data as any)?.error) throw new Error((data as any).error);
-          const stck = Number((data as any)?.output?.stck_prpr);
-          results.push({ ticker, price: Number.isFinite(stck) ? stck : null });
+          const out = (data as any)?.output ?? {};
+          const stck = Number(out.stck_prpr);
+          const rate = Number(out.prdy_vrss_rate);
+          results.push({
+            ticker,
+            price: Number.isFinite(stck) ? stck : null,
+            prevDayChangeRate: Number.isFinite(rate) ? rate : null,
+          });
         } catch {
-          results.push({ ticker, price: null });
+          results.push({ ticker, price: null, prevDayChangeRate: null });
         }
         // Throttle: 150ms between requests
         await new Promise((r) => setTimeout(r, 150));
@@ -69,7 +76,12 @@ export function useKisPrices(tickers: string[]) {
       const stamped = Date.now();
       const updates: Record<string, PriceEntry> = {};
       for (const r of results) {
-        const entry = { price: r.price, loading: false, fetchedAt: stamped };
+        const entry: PriceEntry = {
+          price: r.price,
+          prevDayChangeRate: r.prevDayChangeRate,
+          loading: false,
+          fetchedAt: stamped,
+        };
         cacheRef.current[r.ticker] = entry;
         updates[r.ticker] = entry;
       }

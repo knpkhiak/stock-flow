@@ -461,7 +461,10 @@ export default function Trades() {
                   <TableHead className="w-8" />
                   <TableHead>종목</TableHead>
                   <TableHead>진입</TableHead>
-                  <TableHead>진입가 / 현재가</TableHead>
+                  <TableHead>
+                    진입가 / 현재가
+                    <div className="text-[10px] font-normal text-muted-foreground">(전일 대비 등락률)</div>
+                  </TableHead>
                   <TableHead className="text-right">보유수량</TableHead>
                   <TableHead className="text-right">
                     스탑로스
@@ -473,7 +476,7 @@ export default function Trades() {
                   </TableHead>
                   <TableHead className="text-right">
                     평가손익
-                    <div className="text-[10px] font-normal text-muted-foreground">(미실현)</div>
+                    <div className="text-[10px] font-normal text-muted-foreground">(진입 대비)</div>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -487,21 +490,40 @@ export default function Trades() {
                   const tCloses = closesByTrade[t.id] || [];
                   const days = daysSince(t.entry_date);
                   const isOpen = expanded[t.id];
-                  const cur = tradePrices[t.ticker]?.price ?? null;
+                  const priceEntry = tradePrices[t.ticker];
+                  const cur = priceEntry?.price ?? null;
+                  const prevDayRate = priceEntry?.prevDayChangeRate ?? null;
                   const avg = Number(t.entry_price);
                   const remaining = Number(t.remaining_quantity);
                   const total = Number(t.total_quantity);
-                  const changeRate = cur && avg > 0 ? ((cur - avg) / avg) * 100 : null;
                   const unrealized = cur != null ? (cur - avg) * remaining : null;
                   const unrealizedRate = cur && avg > 0 ? ((cur - avg) / avg) * 100 : null;
                   const realizedSum = tCloses.reduce((s, c) => s + Number(c.realized_pnl), 0);
                   const stopLoss = t.stop_loss != null ? Number(t.stop_loss) : null;
                   const stopTriggered = stopLoss != null && cur != null && cur <= stopLoss;
+                  // 5% within stop-loss → 근접 경고 (노랑 테두리)
+                  const stopNear =
+                    !stopTriggered &&
+                    stopLoss != null &&
+                    cur != null &&
+                    cur > stopLoss &&
+                    (cur - stopLoss) / cur <= 0.05;
                   const marketValue = cur != null ? cur * remaining : null;
+                  const totalClosedQty = tCloses.reduce((s, c) => s + Number(c.close_quantity), 0);
+                  const qtyTooltip =
+                    tCloses.length > 0
+                      ? `최초 ${fmtNum(total)}주 → 부분청산 ${fmtNum(totalClosedQty)}주 → 잔여 ${fmtNum(remaining)}주`
+                      : null;
                   return (
                     <Fragment key={t.id}>
                       <TableRow
-                        className={`cursor-pointer ${stopTriggered ? "bg-profit/5" : ""}`}
+                        className={`cursor-pointer ${
+                          stopTriggered
+                            ? "bg-profit/5 outline outline-1 outline-profit/40"
+                            : stopNear
+                            ? "outline outline-1 outline-status-partial/50"
+                            : ""
+                        }`}
                         onClick={() => toggle(t.id)}
                       >
                         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -519,30 +541,36 @@ export default function Trades() {
                                 <AlertTriangle className="h-3 w-3" /> STOP
                               </span>
                             )}
+                            {stopNear && (
+                              <span className="inline-flex items-center gap-1 rounded-md border border-status-partial/30 bg-status-partial/15 px-1.5 py-0.5 text-[10px] font-medium text-status-partial">
+                                ⚠️ STOP 근접
+                              </span>
+                            )}
                           </div>
                         </TableCell>
                         {/* 진입 */}
                         <TableCell className="text-sm">
                           <div>{t.entry_date.replace(/-/g, ".")}</div>
                           <div className={`text-xs font-medium ${holdingClass(days)} flex items-center gap-1`}>
-                            {days > 30 && <AlertTriangle className="h-3 w-3" />}
+                            {days > 21 && <AlertTriangle className="h-3 w-3" />}
                             D+{days}
                           </div>
                         </TableCell>
-                        {/* 진입가 / 현재가 */}
+                        {/* 진입가 / 현재가 (전일 대비 등락률) */}
                         <TableCell className="text-sm">
                           <div className="tabular-nums">
                             {fmtNum(avg)} <span className="text-muted-foreground">→</span>{" "}
                             {cur != null ? <PriceCell price={cur} session={session} /> : <span className="text-muted-foreground">-</span>}
                           </div>
-                          {changeRate != null && (
-                            <div className={`text-xs tabular-nums ${pnlClass(changeRate)}`}>
-                              {changeRate >= 0 ? "↗" : "↘"} {pnlSign(changeRate)}{changeRate.toFixed(2)}%
+                          {prevDayRate != null && (
+                            <div className={`text-xs tabular-nums ${pnlClass(prevDayRate)}`}>
+                              {prevDayRate >= 0 ? "↗" : "↘"} {pnlSign(prevDayRate)}{prevDayRate.toFixed(2)}%
+                              <span className="text-[10px] text-muted-foreground ml-1">전일대비</span>
                             </div>
                           )}
                         </TableCell>
                         {/* 보유수량 */}
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" title={qtyTooltip ?? undefined}>
                           <div className="font-medium tabular-nums">{fmtNum(remaining)}주</div>
                           {remaining !== total && (
                             <div className="text-xs text-muted-foreground tabular-nums">/ 최초 {fmtNum(total)}주</div>
