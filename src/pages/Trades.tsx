@@ -106,11 +106,36 @@ function TickerCell({ name, ticker, market }: { name: string; ticker: string; ma
   );
 }
 
-function PriceCell({ price, session }: { price: number | null; session: ReturnType<typeof getMarketSession> }) {
+// Format number depending on currency: KRW = no decimals, USD = up to 2.
+function fmtPrice(n: number, currency: "KRW" | "USD" = "KRW"): string {
+  if (currency === "USD") {
+    return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return fmtNum(n);
+}
+
+function fmtSignedPrice(n: number, currency: "KRW" | "USD" = "KRW"): string {
+  const sign = n > 0 ? "+" : n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  if (currency === "USD") {
+    return `${sign}$${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `${sign}${fmtNum(abs)}`;
+}
+
+function PriceCell({
+  price,
+  session,
+  currency = "KRW",
+}: {
+  price: number | null;
+  session: ReturnType<typeof getMarketSession>;
+  currency?: "KRW" | "USD";
+}) {
   if (price === null) return <span className="text-muted-foreground text-xs">-</span>;
   return (
     <span>
-      <span className="tabular-nums">{fmtNum(price)}</span>
+      <span className="tabular-nums">{fmtPrice(price, currency)}</span>
       <span className="text-[10px] text-muted-foreground ml-1">{priceCaption(session)}</span>
     </span>
   );
