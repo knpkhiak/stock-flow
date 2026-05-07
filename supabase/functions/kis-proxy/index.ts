@@ -183,6 +183,33 @@ async function inquireOverseasPrice(env: "real" | "paper", excd: string, ticker:
   return data;
 }
 
+// 국내 상품기본조회 - 종목명/표준상품정보 (실전 전용)
+async function searchStockInfo(env: "real" | "paper", ticker: string) {
+  const base = env === "paper" ? PAPER_BASE : REAL_BASE;
+  const trId = "CTPF1002R";
+  const token = await getToken(env);
+  const params = new URLSearchParams({
+    PRDT_TYPE_CD: "300", // 주식
+    PDNO: ticker,
+  });
+  const res = await fetch(
+    `${base}/uapi/domestic-stock/v1/quotations/search-stock-info?${params}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        authorization: `Bearer ${token}`,
+        appkey: APP_KEY,
+        appsecret: APP_SECRET,
+        tr_id: trId,
+        custtype: "P",
+      },
+    },
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(`stock_info failed: ${JSON.stringify(data)}`);
+  return data;
+}
+
 async function inquireExecutions(env: "real" | "paper", fromDate: string, toDate: string) {
   const base = env === "paper" ? PAPER_BASE : REAL_BASE;
   const trId = env === "paper" ? "VTTC8001R" : "TTTC8001R";
