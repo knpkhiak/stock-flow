@@ -77,9 +77,23 @@ export function NewHoldingDialog({
       setLivePrice(priceVal);
       setVerified(true);
       if (!name.trim()) {
-        const apiName = isOverseas
-          ? (data as any)?.output?.name ?? t
-          : t; // 국내 inquire-price는 종목명 미포함
+        let apiName: string = t;
+        if (isOverseas) {
+          apiName = (data as any)?.output?.name ?? t;
+        } else {
+          // 국내: search-stock-info로 종목명 별도 조회
+          try {
+            const { data: si } = await supabase.functions.invoke("kis-proxy", {
+              body: { action: "stock_info", env: "real", ticker: t },
+            });
+            const out = (si as any)?.output;
+            apiName =
+              out?.prdt_abrv_name ||
+              out?.prdt_name ||
+              out?.prdt_eng_name ||
+              t;
+          } catch { /* 종목명 조회 실패 시 티커 유지 */ }
+        }
         setName(apiName);
       }
       toast.success(`종목 확인 완료 · 현재가 ${priceVal.toLocaleString()}`);
