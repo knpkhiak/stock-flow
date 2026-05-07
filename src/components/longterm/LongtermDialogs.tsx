@@ -79,7 +79,21 @@ export function NewHoldingDialog({
       if (!name.trim()) {
         let apiName: string = t;
         if (isOverseas) {
-          apiName = (data as any)?.output?.name ?? t;
+          // 해외: search-info로 정식 종목명 조회 (실패 시 price 응답의 name 또는 ticker 사용)
+          try {
+            const { data: si } = await supabase.functions.invoke("kis-proxy", {
+              body: { action: "stock_info_overseas", env: "real", ticker: t, excd },
+            });
+            const out = (si as any)?.output;
+            apiName =
+              out?.prdt_name ||
+              out?.prdt_eng_name ||
+              out?.std_pdno ||
+              (data as any)?.output?.name ||
+              t;
+          } catch {
+            apiName = (data as any)?.output?.name ?? t;
+          }
         } else {
           // 국내: search-stock-info로 종목명 별도 조회
           try {
