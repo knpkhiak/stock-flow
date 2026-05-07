@@ -1040,7 +1040,8 @@ function ExpandedSections({
       <div>
         <div className="text-xs text-muted-foreground mb-2 flex items-center justify-between">
           <span>매수 히스토리</span>
-          {showCloseAction && (
+          {/* 수기 부분청산 입력은 한투 자동 동기화로 대체되어 숨김 처리 */}
+          {false && showCloseAction && (
             <Button size="sm" variant="outline" onClick={onCloseAction}>부분 청산</Button>
           )}
         </div>
