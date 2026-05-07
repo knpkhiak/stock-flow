@@ -106,11 +106,36 @@ function TickerCell({ name, ticker, market }: { name: string; ticker: string; ma
   );
 }
 
-function PriceCell({ price, session }: { price: number | null; session: ReturnType<typeof getMarketSession> }) {
+// Format number depending on currency: KRW = no decimals, USD = up to 2.
+function fmtPrice(n: number, currency: "KRW" | "USD" = "KRW"): string {
+  if (currency === "USD") {
+    return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return fmtNum(n);
+}
+
+function fmtSignedPrice(n: number, currency: "KRW" | "USD" = "KRW"): string {
+  const sign = n > 0 ? "+" : n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  if (currency === "USD") {
+    return `${sign}$${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `${sign}${fmtNum(abs)}`;
+}
+
+function PriceCell({
+  price,
+  session,
+  currency = "KRW",
+}: {
+  price: number | null;
+  session: ReturnType<typeof getMarketSession>;
+  currency?: "KRW" | "USD";
+}) {
   if (price === null) return <span className="text-muted-foreground text-xs">-</span>;
   return (
     <span>
-      <span className="tabular-nums">{fmtNum(price)}</span>
+      <span className="tabular-nums">{fmtPrice(price, currency)}</span>
       <span className="text-[10px] text-muted-foreground ml-1">{priceCaption(session)}</span>
     </span>
   );
@@ -332,8 +357,8 @@ export default function Trades() {
 
   // === current price hook ===
   const session = getMarketSession();
-  const openTickers = useMemo(() => open.map((t) => t.ticker), [open]);
-  const ltTickers = useMemo(() => holdings.map((h) => h.ticker), [holdings]);
+  const openTickers = useMemo(() => open.map((t) => ({ ticker: t.ticker, market: t.market })), [open]);
+  const ltTickers = useMemo(() => holdings.map((h) => ({ ticker: h.ticker, market: h.market })), [holdings]);
   const tradePrices = useKisPrices(openTickers);
   const ltPrices = useKisPrices(ltTickers);
 
@@ -493,6 +518,7 @@ export default function Trades() {
                   const priceEntry = tradePrices[t.ticker];
                   const cur = priceEntry?.price ?? null;
                   const prevDayRate = priceEntry?.prevDayChangeRate ?? null;
+                  const currency: "KRW" | "USD" = t.market === "해외" ? "USD" : "KRW";
                   const avg = Number(t.entry_price);
                   const remaining = Number(t.remaining_quantity);
                   const total = Number(t.total_quantity);
@@ -559,8 +585,8 @@ export default function Trades() {
                         {/* 진입가 / 현재가 (전일 대비 등락률) */}
                         <TableCell className="text-sm">
                           <div className="tabular-nums">
-                            {fmtNum(avg)} <span className="text-muted-foreground">→</span>{" "}
-                            {cur != null ? <PriceCell price={cur} session={session} /> : <span className="text-muted-foreground">-</span>}
+                            {fmtPrice(avg, currency)} <span className="text-muted-foreground">→</span>{" "}
+                            {cur != null ? <PriceCell price={cur} session={session} currency={currency} /> : <span className="text-muted-foreground">-</span>}
                           </div>
                           {prevDayRate != null && (
                             <div className={`text-xs tabular-nums ${pnlClass(prevDayRate)}`}>
@@ -588,7 +614,7 @@ export default function Trades() {
                         {/* 총 평가액 */}
                         <TableCell className="text-right">
                           {marketValue != null ? (
-                            <div className="tabular-nums font-medium">{fmtNum(marketValue)}</div>
+                            <div className="tabular-nums font-medium">{fmtPrice(marketValue, currency)}</div>
                           ) : (
                             <span className="text-muted-foreground text-xs">-</span>
                           )}
@@ -598,7 +624,7 @@ export default function Trades() {
                           {unrealized != null ? (
                             <>
                               <div className={`tabular-nums font-medium ${pnlClass(unrealized)}`}>
-                                {fmtSignedNum(unrealized)}
+                                {fmtSignedPrice(unrealized, currency)}
                               </div>
                               {unrealizedRate != null && (
                                 <div className={`text-xs tabular-nums ${pnlClass(unrealizedRate)}`}>
@@ -873,6 +899,7 @@ export default function Trades() {
                   const unrealized = cur != null ? (cur - avg) * remaining : null;
                   const unrealizedRate = changeRate;
                   const realizedSum = hSells.reduce((s, x) => s + Number(x.realized_pnl), 0);
+                  const ltCurrency: "KRW" | "USD" = h.market === "해외" ? "USD" : "KRW";
                   return (
                     <Fragment key={h.id}>
                       <TableRow className="cursor-pointer" onClick={() => toggle(`lt-${h.id}`)}>
@@ -886,8 +913,8 @@ export default function Trades() {
                         </TableCell>
                         <TableCell className="text-sm">
                           <div className="tabular-nums">
-                            {fmtNum(avg)} <span className="text-muted-foreground">→</span>{" "}
-                            {cur != null ? <PriceCell price={cur} session={session} /> : <span className="text-muted-foreground">-</span>}
+                            {fmtPrice(avg, ltCurrency)} <span className="text-muted-foreground">→</span>{" "}
+                            {cur != null ? <PriceCell price={cur} session={session} currency={ltCurrency} /> : <span className="text-muted-foreground">-</span>}
                           </div>
                           {changeRate != null && (
                             <div className={`text-xs tabular-nums ${pnlClass(changeRate)}`}>
@@ -903,7 +930,7 @@ export default function Trades() {
                           {unrealized != null ? (
                             <>
                               <div className={`tabular-nums font-medium ${pnlClass(unrealized)}`}>
-                                {fmtSignedNum(unrealized)}
+                                {fmtSignedPrice(unrealized, ltCurrency)}
                               </div>
                               {unrealizedRate != null && (
                                 <div className={`text-xs tabular-nums ${pnlClass(unrealizedRate)}`}>
@@ -916,7 +943,7 @@ export default function Trades() {
                           )}
                         </TableCell>
                         <TableCell className={`text-right tabular-nums font-medium ${pnlClass(realizedSum)}`}>
-                          {realizedSum === 0 ? "-" : fmtSignedNum(realizedSum)}
+                          {realizedSum === 0 ? "-" : fmtSignedPrice(realizedSum, ltCurrency)}
                         </TableCell>
                       </TableRow>
                       {isOpen && (
