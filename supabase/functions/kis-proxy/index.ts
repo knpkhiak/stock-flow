@@ -583,6 +583,15 @@ Deno.serve(async (req) => {
         });
       }
       payload = await inquireOverseasPrice(env, excd, ticker);
+    } else if (action === "stock_info") {
+      const ticker = String(body.ticker ?? "").trim();
+      if (!ticker) {
+        return new Response(JSON.stringify({ error: "ticker is required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      payload = await searchStockInfo(env, ticker);
     } else {
       return new Response(JSON.stringify({ error: `unknown action: ${action}` }), {
         status: 400,
