@@ -357,8 +357,8 @@ export default function Trades() {
 
   // === current price hook ===
   const session = getMarketSession();
-  const openTickers = useMemo(() => open.map((t) => t.ticker), [open]);
-  const ltTickers = useMemo(() => holdings.map((h) => h.ticker), [holdings]);
+  const openTickers = useMemo(() => open.map((t) => ({ ticker: t.ticker, market: t.market })), [open]);
+  const ltTickers = useMemo(() => holdings.map((h) => ({ ticker: h.ticker, market: h.market })), [holdings]);
   const tradePrices = useKisPrices(openTickers);
   const ltPrices = useKisPrices(ltTickers);
 
