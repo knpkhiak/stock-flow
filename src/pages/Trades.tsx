@@ -585,8 +585,8 @@ export default function Trades() {
                         {/* 진입가 / 현재가 (전일 대비 등락률) */}
                         <TableCell className="text-sm">
                           <div className="tabular-nums">
-                            {fmtNum(avg)} <span className="text-muted-foreground">→</span>{" "}
-                            {cur != null ? <PriceCell price={cur} session={session} /> : <span className="text-muted-foreground">-</span>}
+                            {fmtPrice(avg, currency)} <span className="text-muted-foreground">→</span>{" "}
+                            {cur != null ? <PriceCell price={cur} session={session} currency={currency} /> : <span className="text-muted-foreground">-</span>}
                           </div>
                           {prevDayRate != null && (
                             <div className={`text-xs tabular-nums ${pnlClass(prevDayRate)}`}>
