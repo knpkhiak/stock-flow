@@ -210,6 +210,40 @@ async function searchStockInfo(env: "real" | "paper", ticker: string) {
   return data;
 }
 
+// 해외 상품기본조회 - 종목명 (실전)
+async function searchOverseasStockInfo(env: "real" | "paper", excd: string, ticker: string) {
+  const base = env === "paper" ? PAPER_BASE : REAL_BASE;
+  const trId = "CTPF1702R";
+  const token = await getToken(env);
+  // PRDT_TYPE_CD: 거래소별 — NAS=512, NYS=513, AMS=529, TSE=515, HKS=501, SHS=551, SZS=552, HNX=507, HSX=508
+  const typeMap: Record<string, string> = {
+    NAS: "512", NYS: "513", AMS: "529",
+    TSE: "515", HKS: "501",
+    SHS: "551", SZS: "552",
+    HNX: "507", HSX: "508",
+  };
+  const params = new URLSearchParams({
+    PRDT_TYPE_CD: typeMap[excd] ?? "512",
+    PDNO: ticker,
+  });
+  const res = await fetch(
+    `${base}/uapi/overseas-price/v1/quotations/search-info?${params}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        authorization: `Bearer ${token}`,
+        appkey: APP_KEY,
+        appsecret: APP_SECRET,
+        tr_id: trId,
+        custtype: "P",
+      },
+    },
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(`overseas stock_info failed: ${JSON.stringify(data)}`);
+  return data;
+}
+
 async function inquireExecutions(env: "real" | "paper", fromDate: string, toDate: string) {
   const base = env === "paper" ? PAPER_BASE : REAL_BASE;
   const trId = env === "paper" ? "VTTC8001R" : "TTTC8001R";
