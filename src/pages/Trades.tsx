@@ -518,6 +518,7 @@ export default function Trades() {
                   const priceEntry = tradePrices[t.ticker];
                   const cur = priceEntry?.price ?? null;
                   const prevDayRate = priceEntry?.prevDayChangeRate ?? null;
+                  const currency: "KRW" | "USD" = t.market === "해외" ? "USD" : "KRW";
                   const avg = Number(t.entry_price);
                   const remaining = Number(t.remaining_quantity);
                   const total = Number(t.total_quantity);
