@@ -614,7 +614,7 @@ export default function Trades() {
                         {/* 총 평가액 */}
                         <TableCell className="text-right">
                           {marketValue != null ? (
-                            <div className="tabular-nums font-medium">{fmtNum(marketValue)}</div>
+                            <div className="tabular-nums font-medium">{fmtPrice(marketValue, currency)}</div>
                           ) : (
                             <span className="text-muted-foreground text-xs">-</span>
                           )}
@@ -624,7 +624,7 @@ export default function Trades() {
                           {unrealized != null ? (
                             <>
                               <div className={`tabular-nums font-medium ${pnlClass(unrealized)}`}>
-                                {fmtSignedNum(unrealized)}
+                                {fmtSignedPrice(unrealized, currency)}
                               </div>
                               {unrealizedRate != null && (
                                 <div className={`text-xs tabular-nums ${pnlClass(unrealizedRate)}`}>
