@@ -899,6 +899,7 @@ export default function Trades() {
                   const unrealized = cur != null ? (cur - avg) * remaining : null;
                   const unrealizedRate = changeRate;
                   const realizedSum = hSells.reduce((s, x) => s + Number(x.realized_pnl), 0);
+                  const ltCurrency: "KRW" | "USD" = h.market === "해외" ? "USD" : "KRW";
                   return (
                     <Fragment key={h.id}>
                       <TableRow className="cursor-pointer" onClick={() => toggle(`lt-${h.id}`)}>
@@ -912,8 +913,8 @@ export default function Trades() {
                         </TableCell>
                         <TableCell className="text-sm">
                           <div className="tabular-nums">
-                            {fmtNum(avg)} <span className="text-muted-foreground">→</span>{" "}
-                            {cur != null ? <PriceCell price={cur} session={session} /> : <span className="text-muted-foreground">-</span>}
+                            {fmtPrice(avg, ltCurrency)} <span className="text-muted-foreground">→</span>{" "}
+                            {cur != null ? <PriceCell price={cur} session={session} currency={ltCurrency} /> : <span className="text-muted-foreground">-</span>}
                           </div>
                           {changeRate != null && (
                             <div className={`text-xs tabular-nums ${pnlClass(changeRate)}`}>
@@ -929,7 +930,7 @@ export default function Trades() {
                           {unrealized != null ? (
                             <>
                               <div className={`tabular-nums font-medium ${pnlClass(unrealized)}`}>
-                                {fmtSignedNum(unrealized)}
+                                {fmtSignedPrice(unrealized, ltCurrency)}
                               </div>
                               {unrealizedRate != null && (
                                 <div className={`text-xs tabular-nums ${pnlClass(unrealizedRate)}`}>
@@ -942,7 +943,7 @@ export default function Trades() {
                           )}
                         </TableCell>
                         <TableCell className={`text-right tabular-nums font-medium ${pnlClass(realizedSum)}`}>
-                          {realizedSum === 0 ? "-" : fmtSignedNum(realizedSum)}
+                          {realizedSum === 0 ? "-" : fmtSignedPrice(realizedSum, ltCurrency)}
                         </TableCell>
                       </TableRow>
                       {isOpen && (
