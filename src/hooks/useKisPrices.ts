@@ -2,88 +2,157 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getKisEnv } from "@/pages/Settings";
 
-interface PriceEntry {
+export type PriceCurrency = "KRW" | "USD";
+
+export interface PriceEntry {
   price: number | null;
   prevDayChangeRate: number | null; // 전일 대비 등락률 (%)
+  currency: PriceCurrency;
   loading: boolean;
   fetchedAt: number;
 }
 
+export interface PriceQuery {
+  ticker: string;
+  market?: string; // "국내" | "해외" | "암호화폐" 등
+}
+
 const TTL_MS = 60_000; // 1분 캐시
+const OVERSEAS_EXCDS = ["NAS", "NYS", "AMS"]; // try in order
+
+// 캐시 키 (market 분리해서 동일 ticker가 시장 다를 수 있는 케이스 대응)
+const cacheKey = (q: PriceQuery) => `${q.market ?? "국내"}::${q.ticker}`;
 
 /**
- * 한투 inquire-price를 호출해 ticker별 현재가를 가져오는 훅.
+ * 한투 시세를 ticker별로 가져오는 훅.
+ * - 국내: inquire-price (KRW)
+ * - 해외: overseas price (USD), EXCD 자동 시도 (NAS → NYS → AMS)
  * - 같은 ticker는 1분간 캐시.
- * - kis-proxy `price` 액션을 호출.
+ *
+ * 호환성: tickers를 string[]으로 넘기면 모두 국내로 간주.
  */
-export function useKisPrices(tickers: string[]) {
+export function useKisPrices(input: string[] | PriceQuery[]) {
   const [prices, setPrices] = useState<Record<string, PriceEntry>>({});
   const cacheRef = useRef<Record<string, PriceEntry>>({});
 
+  // Normalize input
+  const queries: PriceQuery[] = (input as any[]).map((x) =>
+    typeof x === "string" ? { ticker: x, market: "국내" } : { ticker: x.ticker, market: x.market ?? "국내" },
+  );
+
+  // dedupe by cache key
+  const seen = new Set<string>();
+  const unique: PriceQuery[] = [];
+  for (const q of queries) {
+    if (!q.ticker) continue;
+    const k = cacheKey(q);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    unique.push(q);
+  }
+
+  const depKey = unique.map(cacheKey).join(",");
+
   useEffect(() => {
-    const unique = Array.from(new Set(tickers.filter(Boolean)));
     if (unique.length === 0) return;
     const now = Date.now();
-    const need = unique.filter((t) => {
-      const c = cacheRef.current[t];
+    const need = unique.filter((q) => {
+      const c = cacheRef.current[q.ticker]; // expose by ticker (consumers index by ticker)
       return !c || now - c.fetchedAt > TTL_MS;
     });
+
     if (need.length === 0) {
-      // Hydrate state from cache if missing
       setPrices((p) => {
         const next = { ...p };
-        for (const t of unique) if (cacheRef.current[t]) next[t] = cacheRef.current[t];
+        for (const q of unique) if (cacheRef.current[q.ticker]) next[q.ticker] = cacheRef.current[q.ticker];
         return next;
       });
       return;
     }
 
-    // Mark loading
     setPrices((p) => {
       const next = { ...p };
-      for (const t of need) next[t] = { price: null, prevDayChangeRate: null, loading: true, fetchedAt: 0 };
+      for (const q of need) {
+        next[q.ticker] = {
+          price: null,
+          prevDayChangeRate: null,
+          currency: q.market === "해외" ? "USD" : "KRW",
+          loading: true,
+          fetchedAt: 0,
+        };
+      }
       return next;
     });
 
     let cancelled = false;
     (async () => {
       const env = getKisEnv();
-      // Serial fetch w/ small delay to respect KIS rate limit (real: ~20/s, paper: ~2/s).
-      const results: { ticker: string; price: number | null; prevDayChangeRate: number | null }[] = [];
-      for (const ticker of need) {
+      const results: Array<{ ticker: string; entry: PriceEntry }> = [];
+
+      for (const q of need) {
         if (cancelled) return;
+        const isOverseas = q.market === "해외";
+        let price: number | null = null;
+        let rate: number | null = null;
+
         try {
-          const { data, error } = await supabase.functions.invoke("kis-proxy", {
-            body: { action: "price", env, ticker },
-          });
-          if (error) throw new Error(error.message);
-          if ((data as any)?.error) throw new Error((data as any).error);
-          const out = (data as any)?.output ?? {};
-          const stck = Number(out.stck_prpr);
-          const rate = Number(out.prdy_vrss_rate);
-          results.push({
-            ticker,
-            price: Number.isFinite(stck) ? stck : null,
-            prevDayChangeRate: Number.isFinite(rate) ? rate : null,
-          });
+          if (isOverseas) {
+            // try multiple exchanges
+            for (const excd of OVERSEAS_EXCDS) {
+              try {
+                const { data, error } = await supabase.functions.invoke("kis-proxy", {
+                  body: { action: "price_overseas", env, ticker: q.ticker, excd },
+                });
+                if (error) throw new Error(error.message);
+                if ((data as any)?.error) throw new Error((data as any).error);
+                const out = (data as any)?.output ?? {};
+                const last = Number(out.last);
+                const r = Number(out.rate); // 등락률(%)
+                if (Number.isFinite(last) && last > 0) {
+                  price = last;
+                  rate = Number.isFinite(r) ? r : null;
+                  break;
+                }
+              } catch {
+                /* try next excd */
+              }
+              await new Promise((r) => setTimeout(r, 120));
+            }
+          } else {
+            const { data, error } = await supabase.functions.invoke("kis-proxy", {
+              body: { action: "price", env, ticker: q.ticker },
+            });
+            if (error) throw new Error(error.message);
+            if ((data as any)?.error) throw new Error((data as any).error);
+            const out = (data as any)?.output ?? {};
+            const stck = Number(out.stck_prpr);
+            const r = Number(out.prdy_vrss_rate);
+            if (Number.isFinite(stck)) price = stck;
+            if (Number.isFinite(r)) rate = r;
+          }
         } catch {
-          results.push({ ticker, price: null, prevDayChangeRate: null });
+          /* leave nulls */
         }
-        // Throttle: 150ms between requests
+
+        results.push({
+          ticker: q.ticker,
+          entry: {
+            price,
+            prevDayChangeRate: rate,
+            currency: isOverseas ? "USD" : "KRW",
+            loading: false,
+            fetchedAt: Date.now(),
+          },
+        });
+
         await new Promise((r) => setTimeout(r, 150));
       }
+
       if (cancelled) return;
-      const stamped = Date.now();
       const updates: Record<string, PriceEntry> = {};
       for (const r of results) {
-        const entry: PriceEntry = {
-          price: r.price,
-          prevDayChangeRate: r.prevDayChangeRate,
-          loading: false,
-          fetchedAt: stamped,
-        };
-        cacheRef.current[r.ticker] = entry;
-        updates[r.ticker] = entry;
+        cacheRef.current[r.ticker] = r.entry;
+        updates[r.ticker] = r.entry;
       }
       setPrices((p) => ({ ...p, ...updates }));
     })();
@@ -92,7 +161,7 @@ export function useKisPrices(tickers: string[]) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tickers.join(",")]);
+  }, [depKey]);
 
   return prices;
 }
