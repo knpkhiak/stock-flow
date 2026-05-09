@@ -12,7 +12,7 @@ import { ArrowLeft, Trash2, Link2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useIdea } from "@/hooks/useIdeas";
-import MarkdownEditor from "@/components/ideas/MarkdownEditor";
+import RichEditor from "@/components/ideas/RichEditor";
 import IdeaStatusBadge from "@/components/ideas/StatusBadge";
 import LinkedTradesCard from "@/components/ideas/LinkedTradesCard";
 import TradeLinkModal from "@/components/ideas/TradeLinkModal";
