@@ -1,16 +1,8 @@
 import { Card } from "@/components/ui/card";
 import MarketIcon from "@/components/MarketIcon";
 import IdeaStatusBadge from "./StatusBadge";
+import { extractTextFromJSON } from "@/lib/extractText";
 import type { Idea } from "@/types/idea";
-
-function stripMarkdown(md: string): string {
-  return md
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/[`*_~>#-]+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
