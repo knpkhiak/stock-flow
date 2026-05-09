@@ -18,7 +18,7 @@ export default function IdeaCard({
   linkedCount?: number;
   onClick?: () => void;
 }) {
-  const preview = stripMarkdown(idea.content).slice(0, 140);
+  const preview = extractTextFromJSON(idea.content).slice(0, 140);
   const tagsShown = idea.tags.slice(0, 3);
   const extraTags = Math.max(0, idea.tags.length - 3);
   const updatedDifferent = idea.updated_at !== idea.created_at;
