@@ -218,15 +218,63 @@ export default function Dashboard() {
           )}
         </Card>
 
-        <Card className="glass-card p-6">
-          <div className="flex items-center gap-2 mb-3">
-            <Lightbulb className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-medium text-muted-foreground">최근 아이디어 노트</h3>
-          </div>
-          <div className="text-sm text-muted-foreground py-6 text-center">STEP 4에서 연동 예정</div>
-        </Card>
+        <RecentIdeasCard />
       </div>
     </div>
+  );
+}
+
+function RecentIdeasCard() {
+  const nav = useNavigate();
+  const [ideas, setIdeas] = useState<{ id: string; title: string; status: string; ticker: string | null; market: string | null; updated_at: string }[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("ideas")
+        .select("id,title,status,ticker,market,updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(3);
+      setIdeas((data as any) || []);
+    })();
+  }, []);
+  const ago = (iso: string) => {
+    const d = (Date.now() - new Date(iso).getTime()) / 86400000;
+    if (d < 1) return "오늘";
+    if (d < 2) return "1일 전";
+    return `${Math.floor(d)}일 전`;
+  };
+  const STATUS_KO: Record<string, string> = { watching: "대기중", entered: "진입함", passed: "패스" };
+  return (
+    <Card className="glass-card p-6">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Lightbulb className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-medium text-muted-foreground">최근 아이디어 노트</h3>
+        </div>
+        <button className="text-xs text-primary hover:underline" onClick={() => nav("/ideas")}>모두 보기 →</button>
+      </div>
+      {ideas.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-6 text-center">아직 작성된 아이디어가 없습니다</div>
+      ) : (
+        <div className="space-y-2">
+          {ideas.map((i) => (
+            <div
+              key={i.id}
+              className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/10 p-2 cursor-pointer hover:border-primary/40"
+              onClick={() => nav(`/ideas/${i.id}`)}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-sm truncate">{i.title}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {i.ticker ? `${i.ticker} · ` : ""}{ago(i.updated_at)}
+                </div>
+              </div>
+              <span className="text-[10px] text-muted-foreground shrink-0">{STATUS_KO[i.status] || i.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
