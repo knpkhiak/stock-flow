@@ -7,6 +7,7 @@ import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import Ideas from "./pages/Ideas";
+import IdeaDetail from "./pages/IdeaDetail";
 import Trades from "./pages/Trades";
 import Assets from "./pages/Assets";
 import SettingsPage from "./pages/Settings";
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/ideas" element={<Ideas />} />
+            <Route path="/ideas/:id" element={<IdeaDetail />} />
             <Route path="/trades" element={<Trades />} />
             <Route path="/assets" element={<Assets />} />
             <Route path="/settings" element={<SettingsPage />} />
