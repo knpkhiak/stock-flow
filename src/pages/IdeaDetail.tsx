@@ -164,8 +164,8 @@ export default function IdeaDetail() {
         </div>
       </Card>
 
-      <Card className="glass-card p-2">
-        <MarkdownEditor value={content} onChange={setContent} ideaId={idea.id} height={500} />
+      <Card className="glass-card p-0 overflow-hidden">
+        <RichEditor value={content} onChange={setContent} ideaId={idea.id} />
       </Card>
 
       <Card className="glass-card p-4">
