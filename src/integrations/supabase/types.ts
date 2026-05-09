@@ -86,6 +86,45 @@ export type Database = {
         }
         Relationships: []
       }
+      ideas: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          market: string | null
+          status: string
+          tags: string[]
+          ticker: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          market?: string | null
+          status?: string
+          tags?: string[]
+          ticker?: string | null
+          title: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          market?: string | null
+          status?: string
+          tags?: string[]
+          ticker?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       kis_sync_log: {
         Row: {
           created_at: string
@@ -428,7 +467,15 @@ export type Database = {
           total_realized_pnl?: number | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "trades_idea_id_fkey"
+            columns: ["idea_id"]
+            isOneToOne: false
+            referencedRelation: "ideas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
