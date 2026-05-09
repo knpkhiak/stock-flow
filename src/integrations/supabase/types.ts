@@ -88,7 +88,7 @@ export type Database = {
       }
       ideas: {
         Row: {
-          content: string
+          content: Json
           created_at: string
           id: string
           market: string | null
@@ -100,7 +100,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          content?: string
+          content?: Json
           created_at?: string
           id?: string
           market?: string | null
@@ -112,7 +112,7 @@ export type Database = {
           user_id?: string
         }
         Update: {
-          content?: string
+          content?: Json
           created_at?: string
           id?: string
           market?: string | null

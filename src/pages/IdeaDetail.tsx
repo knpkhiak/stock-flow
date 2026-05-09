@@ -12,7 +12,7 @@ import { ArrowLeft, Trash2, Link2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useIdea } from "@/hooks/useIdeas";
-import MarkdownEditor from "@/components/ideas/MarkdownEditor";
+import RichEditor from "@/components/ideas/RichEditor";
 import IdeaStatusBadge from "@/components/ideas/StatusBadge";
 import LinkedTradesCard from "@/components/ideas/LinkedTradesCard";
 import TradeLinkModal from "@/components/ideas/TradeLinkModal";
@@ -31,7 +31,7 @@ export default function IdeaDetail() {
   const { idea, loading, refresh, setIdea } = useIdea(id);
 
   const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState<any>({ type: "doc", content: [{ type: "paragraph" }] });
   const [tagsInput, setTagsInput] = useState("");
   const [status, setStatus] = useState<IdeaStatus>("watching");
   const [saveState, setSaveState] = useState<SaveState>("saved");
@@ -43,7 +43,7 @@ export default function IdeaDetail() {
   useEffect(() => {
     if (idea) {
       setTitle(idea.title);
-      setContent(idea.content || "");
+      setContent(idea.content || { type: "doc", content: [{ type: "paragraph" }] });
       setTagsInput(idea.tags.join(", "));
       setStatus(idea.status);
       initial.current = true;
@@ -164,8 +164,8 @@ export default function IdeaDetail() {
         </div>
       </Card>
 
-      <Card className="glass-card p-2">
-        <MarkdownEditor value={content} onChange={setContent} ideaId={idea.id} height={500} />
+      <Card className="glass-card p-0 overflow-hidden">
+        <RichEditor value={content} onChange={setContent} ideaId={idea.id} />
       </Card>
 
       <Card className="glass-card p-4">

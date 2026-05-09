@@ -1,0 +1,145 @@
+/* TipTap dark theme styles for STOCK-FLOW */
+.tiptap-editor .ProseMirror {
+  outline: none;
+  min-height: 400px;
+  padding: 16px;
+  color: hsl(var(--foreground));
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.tiptap-editor .ProseMirror p { margin: 0.5em 0; }
+.tiptap-editor .ProseMirror h1 { font-size: 24px; font-weight: 700; margin: 0.8em 0 0.4em; }
+.tiptap-editor .ProseMirror h2 { font-size: 20px; font-weight: 700; margin: 0.7em 0 0.4em; }
+.tiptap-editor .ProseMirror h3 { font-size: 18px; font-weight: 600; margin: 0.6em 0 0.3em; }
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol { padding-left: 1.5em; margin: 0.5em 0; }
+.tiptap-editor .ProseMirror ul { list-style: disc; }
+.tiptap-editor .ProseMirror ol { list-style: decimal; }
+
+.tiptap-editor .ProseMirror blockquote {
+  border-left: 4px solid hsl(var(--primary));
+  padding-left: 16px;
+  margin: 0.6em 0;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 4px;
+}
+
+.tiptap-editor .ProseMirror code {
+  background: hsl(var(--muted) / 0.6);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.9em;
+}
+
+.tiptap-editor .ProseMirror pre {
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--primary));
+  padding: 12px;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 13px;
+  overflow-x: auto;
+}
+.tiptap-editor .ProseMirror pre code { background: transparent; padding: 0; color: inherit; }
+
+.tiptap-editor .ProseMirror hr {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 1em 0;
+}
+
+.tiptap-editor .ProseMirror a {
+  color: hsl(var(--primary));
+  text-decoration: none;
+}
+.tiptap-editor .ProseMirror a:hover { text-decoration: underline; }
+
+.tiptap-editor .ProseMirror img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 0.5em 0;
+}
+
+.tiptap-editor .ProseMirror mark {
+  background: rgba(255, 235, 59, 0.3);
+  border-radius: 2px;
+  padding: 0 2px;
+  color: inherit;
+}
+
+.tiptap-editor .ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0.5em 0;
+  overflow: hidden;
+}
+.tiptap-editor .ProseMirror th,
+.tiptap-editor .ProseMirror td {
+  border: 1px solid hsl(var(--border));
+  padding: 8px 12px;
+  vertical-align: top;
+  position: relative;
+}
+.tiptap-editor .ProseMirror th { background: hsl(var(--muted) / 0.4); font-weight: 600; }
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0.2em 0;
+}
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label { margin-top: 4px; }
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > div { flex: 1; }
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: hsl(var(--muted-foreground));
+  text-decoration: line-through;
+}
+.tiptap-editor .ProseMirror input[type="checkbox"] {
+  accent-color: hsl(var(--primary));
+}
+
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  height: 0;
+}
+
+/* Slash command popup */
+.slash-cmd-menu {
+  background: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  padding: 4px;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.slash-cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: hsl(var(--foreground));
+}
+.slash-cmd-item:hover,
+.slash-cmd-item.is-selected {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+.slash-cmd-icon { width: 18px; text-align: center; }
+.slash-cmd-empty { padding: 8px 10px; font-size: 12px; color: hsl(var(--muted-foreground)); }

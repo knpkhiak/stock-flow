@@ -1,16 +1,8 @@
 import { Card } from "@/components/ui/card";
 import MarketIcon from "@/components/MarketIcon";
 import IdeaStatusBadge from "./StatusBadge";
+import { extractTextFromJSON } from "@/lib/extractText";
 import type { Idea } from "@/types/idea";
-
-function stripMarkdown(md: string): string {
-  return md
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/[`*_~>#-]+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
@@ -26,7 +18,7 @@ export default function IdeaCard({
   linkedCount?: number;
   onClick?: () => void;
 }) {
-  const preview = stripMarkdown(idea.content).slice(0, 140);
+  const preview = extractTextFromJSON(idea.content).slice(0, 140);
   const tagsShown = idea.tags.slice(0, 3);
   const extraTags = Math.max(0, idea.tags.length - 3);
   const updatedDifferent = idea.updated_at !== idea.created_at;
