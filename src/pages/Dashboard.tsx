@@ -277,10 +277,6 @@ function RecentIdeasCard() {
     </Card>
   );
 }
-      </div>
-    </div>
-  );
-}
 
 function SummaryCard({
   icon, label, value, valueColor, hint, hintColor, warning,
