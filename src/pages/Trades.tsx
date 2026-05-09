@@ -94,13 +94,23 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function TickerCell({ name, ticker, market }: { name: string; ticker: string; market: string }) {
+function TickerCell({ name, ticker, market, ideaId }: { name: string; ticker: string; market: string; ideaId?: string | null }) {
   return (
     <div>
       <div className="font-medium flex items-center gap-1.5">
         <MarketIcon market={market} />
         <span>{name}</span>
         <span className="text-xs text-muted-foreground">({ticker})</span>
+        {ideaId && (
+          <a
+            href={`/ideas/${ideaId}`}
+            onClick={(e) => e.stopPropagation()}
+            title="연결된 아이디어 보기"
+            className="text-warning hover:opacity-80"
+          >
+            💡
+          </a>
+        )}
       </div>
     </div>
   );
