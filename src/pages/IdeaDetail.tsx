@@ -31,7 +31,7 @@ export default function IdeaDetail() {
   const { idea, loading, refresh, setIdea } = useIdea(id);
 
   const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState<any>({ type: "doc", content: [{ type: "paragraph" }] });
   const [tagsInput, setTagsInput] = useState("");
   const [status, setStatus] = useState<IdeaStatus>("watching");
   const [saveState, setSaveState] = useState<SaveState>("saved");
