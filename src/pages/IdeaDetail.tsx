@@ -43,7 +43,7 @@ export default function IdeaDetail() {
   useEffect(() => {
     if (idea) {
       setTitle(idea.title);
-      setContent(idea.content || "");
+      setContent(idea.content || { type: "doc", content: [{ type: "paragraph" }] });
       setTagsInput(idea.tags.join(", "));
       setStatus(idea.status);
       initial.current = true;
