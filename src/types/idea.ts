@@ -6,7 +6,7 @@ export interface Idea {
   title: string;
   ticker: string | null;
   market: string | null;
-  content: string;
+  content: any;
   tags: string[];
   status: IdeaStatus;
   created_at: string;
