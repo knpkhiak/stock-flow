@@ -569,7 +569,7 @@ export default function Trades() {
                         </TableCell>
                         {/* 종목 */}
                         <TableCell>
-                          <TickerCell name={t.name} ticker={t.ticker} market={t.market} />
+                          <TickerCell name={t.name} ticker={t.ticker} market={t.market} ideaId={t.idea_id} />
                           <div className="mt-1 flex items-center gap-1.5">
                             <StatusBadge status={t.status} />
                             {stopTriggered && (
@@ -822,7 +822,7 @@ export default function Trades() {
                           </Button>
                         </TableCell>
                         <TableCell>
-                          <TickerCell name={t.name} ticker={t.ticker} market={t.market} />
+                          <TickerCell name={t.name} ticker={t.ticker} market={t.market} ideaId={t.idea_id} />
                           <div className="mt-1"><StatusBadge status="CLOSED" /></div>
                         </TableCell>
                         <TableCell className="text-sm">
