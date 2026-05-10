@@ -1,32 +1,29 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Idea } from "@/types/idea";
-import { useAuth } from "./useAuth";
 
-export function useIdeas() {
-  const { user } = useAuth();
+export type SharedSort = "latest" | "popular" | "comments";
+
+export function useSharedIdeas(sort: SharedSort = "latest") {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    if (!user) { setIdeas([]); setLoading(false); return; }
     setLoading(true);
-    // 본인 노트만 (공유 노트는 별도 페이지에서 useSharedIdeas 사용)
-    const { data, error } = await supabase
-      .from("ideas")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("updated_at", { ascending: false });
-    if (!error && data) setIdeas(data as Idea[]);
+    let q = supabase.from("ideas").select("*").eq("is_shared", true);
+    if (sort === "latest") q = q.order("shared_at", { ascending: false });
+    else if (sort === "popular") q = q.order("like_count", { ascending: false });
+    else q = q.order("comment_count", { ascending: false });
+    const { data } = await q;
+    setIdeas((data as Idea[]) || []);
     setLoading(false);
-  }, [user]);
+  }, [sort]);
 
   useEffect(() => { refresh(); }, [refresh]);
-
   return { ideas, loading, refresh };
 }
 
-export function useIdea(id: string | undefined) {
+export function useSharedIdea(id: string | undefined) {
   const [idea, setIdea] = useState<Idea | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,6 +36,5 @@ export function useIdea(id: string | undefined) {
   }, [id]);
 
   useEffect(() => { refresh(); }, [refresh]);
-
-  return { idea, loading, refresh, setIdea };
+  return { idea, loading, refresh };
 }

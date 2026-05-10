@@ -8,7 +8,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Trash2, Link2, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowLeft, Trash2, Link2, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useIdea } from "@/hooks/useIdeas";
@@ -34,6 +36,8 @@ export default function IdeaDetail() {
   const [content, setContent] = useState<any>({ type: "doc", content: [{ type: "paragraph" }] });
   const [tagsInput, setTagsInput] = useState("");
   const [status, setStatus] = useState<IdeaStatus>("watching");
+  const [isShared, setIsShared] = useState(false);
+  const [sharePnl, setSharePnl] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [linkOpen, setLinkOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
@@ -46,6 +50,8 @@ export default function IdeaDetail() {
       setContent(idea.content || { type: "doc", content: [{ type: "paragraph" }] });
       setTagsInput(idea.tags.join(", "));
       setStatus(idea.status);
+      setIsShared(idea.is_shared);
+      setSharePnl(idea.share_pnl_rate);
       initial.current = true;
     }
   }, [idea]);
@@ -59,7 +65,7 @@ export default function IdeaDetail() {
     debouncer.current = window.setTimeout(() => { void save(); }, 5000);
     return () => { if (debouncer.current) window.clearTimeout(debouncer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, content, tagsInput, status]);
+  }, [title, content, tagsInput, status, sharePnl]);
 
   const save = async () => {
     if (!idea) return;
@@ -68,11 +74,11 @@ export default function IdeaDetail() {
       const tags = tagsInput.split(",").map((s) => s.trim()).filter(Boolean);
       const { error } = await supabase
         .from("ideas")
-        .update({ title: title.trim() || "(제목 없음)", content, tags, status })
+        .update({ title: title.trim() || "(제목 없음)", content, tags, status, share_pnl_rate: sharePnl })
         .eq("id", idea.id);
       if (error) throw error;
       setSaveState("saved");
-      setIdea({ ...idea, title, content, tags, status, updated_at: new Date().toISOString() });
+      setIdea({ ...idea, title, content, tags, status, share_pnl_rate: sharePnl, updated_at: new Date().toISOString() });
     } catch (e: any) {
       setSaveState("error");
       toast.error(`저장 실패: ${e.message}`);
@@ -161,6 +167,28 @@ export default function IdeaDetail() {
           <span>작성 {new Date(idea.created_at).toLocaleDateString("ko-KR")}</span>
           <span>·</span>
           <span>수정 {new Date(idea.updated_at).toLocaleDateString("ko-KR")}</span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-3 border-t border-border/40">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-primary/70" />
+            <span className="text-sm font-medium">공유</span>
+            <Switch checked={isShared} onCheckedChange={async (v) => {
+              setIsShared(v);
+              const { error } = await supabase.from("ideas")
+                .update({ is_shared: v, shared_at: v ? new Date().toISOString() : null })
+                .eq("id", idea.id);
+              if (error) { setIsShared(!v); toast.error(error.message); return; }
+              toast.success(v ? "공유되었습니다. 다른 친구들이 볼 수 있어요." : "공유 해제되었습니다.");
+              setIdea({ ...idea, is_shared: v, shared_at: v ? new Date().toISOString() : null });
+            }} />
+          </div>
+          {isShared && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+              <Checkbox checked={sharePnl} onCheckedChange={(v) => setSharePnl(!!v)} />
+              매매 수익률 함께 공유
+            </label>
+          )}
         </div>
       </Card>
 

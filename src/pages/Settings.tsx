@@ -17,6 +17,10 @@ import { toast } from "sonner";
 import { CheckCircle2, Circle, AlertCircle, RefreshCw, KeyRound, Info, ShieldCheck, AlertTriangle, Trash2 } from "lucide-react";
 import { setInitialSetup } from "@/lib/initialSetup";
 import { useAuth } from "@/hooks/useAuth";
+import InviteCodeManager from "@/components/social/InviteCodeManager";
+import NicknameSetup from "@/components/social/NicknameSetup";
+import { useMyProfile } from "@/hooks/useNickname";
+import { Card as ProfileCard } from "@/components/ui/card";
 
 const ENV_KEY = "stock-flow-kis-env";
 const STATUS_KEY = "stock-flow-kis-status";
@@ -31,6 +35,8 @@ export function getKisStatus(): "connected" | "expired" | "none" {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { profile, refresh: refreshProfile } = useMyProfile();
+  const [nickOpen, setNickOpen] = useState(false);
   const [env, setEnv] = useState<"real" | "paper">("real");
   const [status, setStatus] = useState<"connected" | "expired" | "none">("none");
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -141,11 +147,33 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <div>
-        <h1 className="text-2xl font-semibold">API 설정</h1>
+        <h1 className="text-2xl font-semibold">설정</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          한국투자증권 OpenAPI를 통해 보유종목·체결내역을 자동 동기화합니다
+          프로필, 친구 초대, 한국투자증권 OpenAPI 동기화를 관리합니다
         </p>
       </div>
+
+      {/* Profile */}
+      <ProfileCard className="glass-card p-6 space-y-3">
+        <h2 className="text-lg font-semibold">프로필</h2>
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <Label className="text-xs">현재 닉네임</Label>
+            <Input value={profile?.nickname || ""} readOnly className="mt-1" />
+          </div>
+          <Button variant="outline" onClick={() => setNickOpen(true)}>변경</Button>
+        </div>
+      </ProfileCard>
+
+      {/* Invite Codes */}
+      <InviteCodeManager />
+
+      <NicknameSetup
+        open={nickOpen}
+        onOpenChange={setNickOpen}
+        initialNickname={profile?.nickname || ""}
+        onSaved={() => { setNickOpen(false); refreshProfile(); }}
+      />
 
       <Card className="glass-card p-6 space-y-4">
         <div className="flex items-center justify-between">

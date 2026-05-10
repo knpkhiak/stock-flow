@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { Globe } from "lucide-react";
 import MarketIcon from "@/components/MarketIcon";
 import IdeaStatusBadge from "./StatusBadge";
 import { extractTextFromJSON } from "@/lib/extractText";
@@ -30,7 +31,14 @@ export default function IdeaCard({
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <h3 className="font-semibold text-sm truncate flex-1">{idea.title}</h3>
-        <IdeaStatusBadge status={idea.status} />
+        <div className="flex items-center gap-1.5">
+          {idea.is_shared && (
+            <span title={`공유 중 (좋아요 ${idea.like_count}, 댓글 ${idea.comment_count})`} className="text-primary/70">
+              <Globe className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <IdeaStatusBadge status={idea.status} />
+        </div>
       </div>
 
       {idea.ticker && (

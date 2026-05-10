@@ -53,6 +53,42 @@ export type Database = {
         }
         Relationships: []
       }
+      board_posts: {
+        Row: {
+          author_id: string
+          comment_count: number
+          content: Json
+          created_at: string
+          id: string
+          like_count: number
+          title: string
+          updated_at: string
+          view_count: number
+        }
+        Insert: {
+          author_id: string
+          comment_count?: number
+          content?: Json
+          created_at?: string
+          id?: string
+          like_count?: number
+          title: string
+          updated_at?: string
+          view_count?: number
+        }
+        Update: {
+          author_id?: string
+          comment_count?: number
+          content?: Json
+          created_at?: string
+          id?: string
+          like_count?: number
+          title?: string
+          updated_at?: string
+          view_count?: number
+        }
+        Relationships: []
+      }
       cash_transactions: {
         Row: {
           amount: number
@@ -86,12 +122,61 @@ export type Database = {
         }
         Relationships: []
       }
+      comments: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          id: string
+          is_deleted: boolean
+          parent_comment_id: string | null
+          target_id: string
+          target_type: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_deleted?: boolean
+          parent_comment_id?: string | null
+          target_id: string
+          target_type: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_deleted?: boolean
+          parent_comment_id?: string | null
+          target_id?: string
+          target_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_parent_comment_id_fkey"
+            columns: ["parent_comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ideas: {
         Row: {
+          comment_count: number
           content: Json
           created_at: string
           id: string
+          is_shared: boolean
+          like_count: number
           market: string | null
+          share_pnl_rate: boolean
+          shared_at: string | null
           status: string
           tags: string[]
           ticker: string | null
@@ -100,10 +185,15 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          comment_count?: number
           content?: Json
           created_at?: string
           id?: string
+          is_shared?: boolean
+          like_count?: number
           market?: string | null
+          share_pnl_rate?: boolean
+          shared_at?: string | null
           status?: string
           tags?: string[]
           ticker?: string | null
@@ -112,16 +202,54 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          comment_count?: number
           content?: Json
           created_at?: string
           id?: string
+          is_shared?: boolean
+          like_count?: number
           market?: string | null
+          share_pnl_rate?: boolean
+          shared_at?: string | null
           status?: string
           tags?: string[]
           ticker?: string | null
           title?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      invite_codes: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          is_used: boolean
+          memo: string | null
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_used?: boolean
+          memo?: string | null
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_used?: boolean
+          memo?: string | null
+          used_at?: string | null
+          used_by?: string | null
         }
         Relationships: []
       }
@@ -167,6 +295,27 @@ export type Database = {
           env?: string
           expires_at?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      likes: {
+        Row: {
+          created_at: string
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          target_id?: string
+          target_type?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -477,12 +626,46 @@ export type Database = {
           },
         ]
       }
+      user_profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          nickname: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          nickname: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          nickname?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      change_nickname: { Args: { new_nickname: string }; Returns: undefined }
+      increment_post_view: { Args: { p_post_id: string }; Returns: undefined }
+      toggle_like: {
+        Args: { p_target_id: string; p_target_type: string }
+        Returns: Json
+      }
+      use_invite_code: {
+        Args: { p_code: string; p_user_id: string }
+        Returns: undefined
+      }
+      verify_invite_code: { Args: { p_code: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never

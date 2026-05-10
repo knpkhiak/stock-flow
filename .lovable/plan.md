@@ -1,78 +1,95 @@
-# STEP 4 — 아이디어 노트 모듈 구현 계획
+# STEP 5 — 공유 기능 + 자유게시판
 
-매매기록/자산관리와 자연스럽게 연결되는 마크다운 기반 투자 아이디어 노트 시스템을 추가합니다.
+폐쇄형 친구 그룹(5명 이내)을 위한 공유/게시판/초대코드 시스템을 추가합니다. 기존 매매기록·아이디어 노트·자산관리·인증·RLS는 그대로 유지하고 신규 모듈만 얹습니다.
 
-## 1. 데이터베이스 (Supabase)
+---
 
-**ideas 테이블 신규 생성**
-- 필드: title, ticker, market, content(마크다운), tags(text[]), status(watching/entered/passed)
-- RLS: 본인 데이터만 조회/생성/수정/삭제
-- updated_at 자동 갱신 트리거
+## 1. 데이터베이스 (마이그레이션 1회)
 
-**trades 테이블 수정**
-- `idea_id` 컬럼 추가 (FK → ideas.id, ON DELETE SET NULL)
+신규 테이블 5개와 `ideas` 컬럼 추가, 트리거, RPC 함수를 한 번의 마이그레이션으로 생성합니다.
 
-**Storage 버킷 'ideas-images'**
-- 비공개, 5MB 제한, image/* MIME 타입
-- 경로 구조: `{user_id}/{idea_id}/{timestamp}.webp`
-- 본인 폴더만 업로드/조회/삭제 가능
+### 신규 테이블
+- **user_profiles** — `user_id` PK, `nickname`(unique), `avatar_url`. SELECT 공개(닉네임 표시용), 수정은 본인만.
+- **invite_codes** — 8자리 코드, `created_by`/`used_by`/`is_used`/`memo`. 본인 발급분만 SELECT.
+- **board_posts** — 자유게시판 글. `content` jsonb (TipTap), `view_count`/`like_count`/`comment_count` 자동 갱신. SELECT 공개, 수정/삭제는 작성자만.
+- **comments** — `target_type`('post'|'shared_idea'), `parent_comment_id`(1단계 대댓글), `is_deleted`(soft delete).
+- **likes** — `(user_id, target_type, target_id)` 복합 PK. SELECT 공개.
 
-## 2. 라이브러리 추가
+### `ideas` 테이블 컬럼 추가
+- `is_shared` bool, `shared_at` timestamp, `share_pnl_rate` bool, `like_count` int, `comment_count` int
+- SELECT RLS 변경: `auth.uid() = user_id OR is_shared = true`
 
-- `@uiw/react-md-editor` (마크다운 에디터)
-- `dompurify` (XSS 방지)
-- 이미지 압축은 Canvas API로 직접 구현 (별도 라이브러리 없음)
+### 트리거
+- `likes` INSERT/DELETE → `board_posts.like_count` / `ideas.like_count` 자동 갱신
+- `comments` INSERT/soft delete → `board_posts.comment_count` / `ideas.comment_count` 갱신
+- 답글의 답글 INSERT 차단 트리거 (parent의 parent가 NULL이 아니면 reject)
 
-## 3. 신규 파일
+### RPC 함수
+- `change_nickname(new_nickname text)` — 중복 검사 후 업데이트
+- `verify_invite_code(p_code text) → jsonb` — 유효성 반환
+- `use_invite_code(p_code text, p_user_id uuid)` — 사용 처리
+- `toggle_like(p_target_type text, p_target_id uuid) → jsonb` — 토글 결과 반환
 
-```
-src/pages/Ideas.tsx              # 목록 페이지 (필터/검색/정렬)
-src/pages/IdeaDetail.tsx         # 상세 페이지 (에디터 + 연결매매)
-src/components/ideas/
-  IdeaCard.tsx                   # 카드 컴포넌트
-  MarkdownEditor.tsx             # 에디터 래퍼 (paste/drop 이미지)
-  LinkedTradesCard.tsx           # 연결된 매매 카드
-  TradeLinkModal.tsx             # 매매 연결 모달
-  NewIdeaDialog.tsx              # 빠른 작성 모달
-src/lib/imageCompressor.ts       # Canvas 압축 (1920px, WebP, q=0.8)
-src/lib/imageUpload.ts           # Storage 업로드 헬퍼
-src/hooks/useIdeas.ts            # CRUD + 자동저장
-src/hooks/useLinkedTrades.ts     # 연결 매매 조회
-```
+---
 
-## 4. 수정 파일
+## 2. 신규 페이지 / 라우트
 
-- `src/App.tsx` — `/ideas`, `/ideas/:id` 라우트 추가
-- `src/pages/Ideas.tsx` — 기존 placeholder 교체
-- `src/pages/Trades.tsx` — 종목 셀에 💡 아이콘, 펼침 영역에 [아이디어 연결] 버튼
-- `src/components/trades/NewTradeDialog.tsx` — "아이디어 연결" 드롭다운 (수동 매매만)
-- `src/pages/Dashboard.tsx` — 최근 아이디어 3건 영역 실제 데이터 연결
+App.tsx에 라우트 추가:
+- `/invite` — 초대 코드 입력 (Public)
+- `/signup` — 닉네임 + 가입 (sessionStorage에 invite_code 없으면 /invite로 리다이렉트)
+- `/shared`, `/shared/:id` — 공유 노트 목록/상세
+- `/board`, `/board/new`, `/board/:id`, `/board/:id/edit` — 자유게시판
 
-## 5. 주요 동작
+**기존 사용자 마이그레이션:** ProtectedRoute에서 user_profiles의 nickname이 NULL이면 NicknameSetup 모달을 강제 표시.
 
-**자동 저장**: 본문 변경 5초 디바운스 → 우상단 "저장됨/저장 중/저장 실패" 인디케이터
-**이미지 처리**: paste/drop → 즉시 토스트 → Canvas 압축 → Storage 업로드 → 마크다운 자동 삽입
-**티커 자동완성**: 기존 `kis-proxy` `stock_info`/`stock_info_overseas` 재사용 (장기투자 다이얼로그와 동일 로직)
-**매매 연결 1:N 정책**: 1매매는 1아이디어. 중복 시 변경 확인 다이얼로그
-**상태 전환**: 매매 연결 시 자동 'entered', 패스 시 연결 해제 옵션
-**삭제**: 확인 다이얼로그 → trades.idea_id = NULL (DB 트리거), Storage 폴더 정리
+---
 
-## 6. 디자인 토큰
+## 3. 신규 컴포넌트
+- `social/LikeButton` — 낙관적 업데이트 + `toggle_like` RPC
+- `social/CommentSection` + `social/CommentItem` — 1단계 대댓글, soft delete
+- `social/AuthorBadge` — 닉네임 + 아바타 + 상대시간
+- `social/CertifiedBadge` — 한투 인증 뱃지 (OPEN/CLOSED, 수익률 색상)
+- `SharedNoteCard`, `BoardPostRow`
+- `InviteCodeManager`, `NicknameSetup`
 
-기존 시스템 준수 — 상태별 뱃지 색상은 semantic 토큰으로 매핑:
-- watching: muted, entered: warning(노랑), passed: 보라 계열
-- 손익: 한국식 (양수 빨강 / 음수 파랑) 기존 헬퍼 재사용
-- 시장 표시: `MarketIcon` 컴포넌트 재사용
+## 4. 신규 훅 / 유틸
+- 훅: `useNickname`, `useInviteCode`, `useLikes`, `useComments`, `useSharedIdeas`, `useBoardPosts`
+- 유틸: `inviteCodeGenerator` (8자리, O/0/I/1/L 제외), `profileUtils` (닉네임 검증)
 
-## 7. 구현 순서
+---
 
-1. DB 마이그레이션 + Storage 버킷 (사용자 승인)
-2. 라이브러리 설치
-3. 유틸리티(imageCompressor, imageUpload) + 훅(useIdeas, useLinkedTrades)
-4. 페이지/컴포넌트 (Ideas, IdeaDetail, IdeaCard, MarkdownEditor, TradeLinkModal, LinkedTradesCard)
-5. 기존 페이지 연동 (Trades, Dashboard, App 라우터)
-6. 빌드 확인 및 검증
+## 5. 기존 파일 수정
+- **AppSidebar** — `🌐 공유 노트`, `💬 자유게시판` 메뉴 추가
+- **Ideas.tsx** — [전체/비공개/공유 중] 탭 추가
+- **IdeaDetail.tsx** — 공유 토글 + "수익률 함께 공유" 체크박스
+- **IdeaCard.tsx** — 공유 중이면 🌐 아이콘
+- **Login.tsx / Signup.tsx** — 닉네임 모달 / 초대 코드 검증
+- **Settings.tsx** — 닉네임 변경 + 초대 코드 관리 카드
+- **Dashboard.tsx** — "최근 공유 노트" + "최근 게시판 활동" 위젯
 
-## 보존 사항
+---
 
-인증/RLS, kis-proxy Edge Function, 매매기록 8컬럼 구조, 자동 동기화, 색상 시스템, 자산관리/대시보드 기존 구조 — 모두 유지.
+## 6. 매매 인증 뱃지 로직
+공유 노트에 연결된 trade가 있고 `share_pnl_rate=true`일 때 자동 표시:
+- OPEN/PARTIAL → `📊 진행 중 ±X%` (회색 배경)
+- CLOSED → `✅ 한투 인증 ±X%` (초록 배경)
+- 수익=빨강 / 손실=파랑 (한국식)
+- 절대 노출 금지: 수량, 평가금액, 실제 금액
+
+## 7. 디자인 / 보안 원칙
+- 기존 시멘틱 토큰 재사용 (직접 색상 X)
+- TipTap RichEditor 컴포넌트 그대로 재사용 (게시판/공유 노트 모두)
+- 모든 신규 테이블 RLS 활성화
+- 초대 코드 1회용, 운영자(본인)만 발급
+
+---
+
+## 진행 순서
+1. 마이그레이션 작성 → 사용자 승인 → 실행 (types.ts 자동 갱신)
+2. 유틸/훅/공통 컴포넌트 작성
+3. 신규 페이지 작성 (Invite → Shared → Board)
+4. 기존 페이지 수정 (Sidebar, Ideas, IdeaDetail, Login, Signup, Settings, Dashboard)
+5. App.tsx 라우트 등록 및 ProtectedRoute에 닉네임 가드 삽입
+6. 빌드/프리뷰 확인
+
+승인하시면 마이그레이션부터 진행하겠습니다.

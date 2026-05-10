@@ -9,6 +9,11 @@ export interface Idea {
   content: any;
   tags: string[];
   status: IdeaStatus;
+  is_shared: boolean;
+  shared_at: string | null;
+  share_pnl_rate: boolean;
+  like_count: number;
+  comment_count: number;
   created_at: string;
   updated_at: string;
 }

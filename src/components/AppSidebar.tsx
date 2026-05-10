@@ -1,4 +1,4 @@
-import { Home, Lightbulb, LineChart, Wallet, Settings, LogOut } from "lucide-react";
+import { Home, Lightbulb, LineChart, Wallet, Settings, LogOut, Globe, MessageSquare } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -11,6 +11,8 @@ import { toast } from "sonner";
 const items = [
   { title: "대시보드", url: "/dashboard", icon: Home },
   { title: "아이디어 노트", url: "/ideas", icon: Lightbulb },
+  { title: "공유 노트", url: "/shared", icon: Globe },
+  { title: "자유게시판", url: "/board", icon: MessageSquare },
   { title: "매매기록", url: "/trades", icon: LineChart },
   { title: "자산관리", url: "/assets", icon: Wallet },
   { title: "API 설정", url: "/settings", icon: Settings },
@@ -72,13 +74,7 @@ export function AppSidebar() {
             {user.email}
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleLogout}
-          className="justify-start gap-2 mx-2 mb-1"
-          title="로그아웃"
-        >
+        <Button variant="ghost" size="sm" onClick={handleLogout} className="justify-start gap-2 mx-2 mb-1" title="로그아웃">
           <LogOut className="h-4 w-4" />
           {!collapsed && <span>로그아웃</span>}
         </Button>
