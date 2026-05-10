@@ -7,21 +7,50 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import { Check, X } from "lucide-react";
+import { validateNickname } from "@/lib/profileUtils";
+import { checkNicknameAvailable } from "@/hooks/useNickname";
+import { INVITE_KEY } from "./Invite";
 
 export default function Login() {
   const location = useLocation();
-  const [mode, setMode] = useState<"login" | "signup">(
-    location.pathname === "/signup" ? "signup" : "login"
-  );
+  const nav = useNavigate();
+  const { user } = useAuth();
+  const isSignup = location.pathname === "/signup";
+  const [mode, setMode] = useState<"login" | "signup">(isSignup ? "signup" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [nickAvail, setNickAvail] = useState<boolean | null>(null);
+  const [nickReason, setNickReason] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const navigate = useNavigate();
-  const { user } = useAuth();
+
+  // 회원가입 모드는 초대 코드 필요
+  useEffect(() => {
+    if (mode === "signup" && !sessionStorage.getItem(INVITE_KEY)) {
+      nav("/invite", { replace: true });
+    }
+  }, [mode, nav]);
 
   useEffect(() => {
-    if (user) navigate("/dashboard", { replace: true });
-  }, [user, navigate]);
+    if (user) nav("/dashboard", { replace: true });
+  }, [user, nav]);
+
+  // 닉네임 실시간 검증
+  useEffect(() => {
+    if (mode !== "signup") return;
+    setNickAvail(null); setNickReason(null);
+    const v = nickname.trim();
+    if (!v) return;
+    const c = validateNickname(v);
+    if (!c.ok) { setNickReason(c.reason || ""); return; }
+    const t = setTimeout(async () => {
+      const ok = await checkNicknameAvailable(v);
+      setNickAvail(ok);
+      if (!ok) setNickReason("이미 사용 중인 닉네임");
+    }, 500);
+    return () => clearTimeout(t);
+  }, [nickname, mode]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,12 +61,36 @@ export default function Login() {
         if (error) throw error;
         toast.success("로그인 성공");
       } else {
-        const { error } = await supabase.auth.signUp({
+        if (!nickAvail) { toast.error("닉네임을 확인해주세요"); return; }
+        const inviteCode = sessionStorage.getItem(INVITE_KEY);
+        if (!inviteCode) { nav("/invite", { replace: true }); return; }
+
+        // 1. signUp
+        const { data: signUp, error: sErr } = await supabase.auth.signUp({
           email, password,
           options: { emailRedirectTo: `${window.location.origin}/dashboard` },
         });
-        if (error) throw error;
-        toast.success("계정이 생성되었습니다");
+        if (sErr) throw sErr;
+        const newUserId = signUp.user?.id;
+
+        // 2. 자동 로그인 (이메일 확인 미사용 환경 대비)
+        if (!signUp.session) {
+          await supabase.auth.signInWithPassword({ email, password });
+        }
+
+        // 3. 프로필 생성 + 초대 코드 사용 처리
+        if (newUserId) {
+          const { error: pErr } = await supabase.from("user_profiles").insert({
+            user_id: newUserId, nickname: nickname.trim(),
+          });
+          if (pErr) throw pErr;
+          const { error: uErr } = await supabase.rpc("use_invite_code", {
+            p_code: inviteCode, p_user_id: newUserId,
+          });
+          if (uErr) throw uErr;
+        }
+        sessionStorage.removeItem(INVITE_KEY);
+        toast.success("가입이 완료되었습니다");
       }
     } catch (err: any) {
       toast.error(err.message ?? "오류가 발생했습니다");
@@ -73,20 +126,50 @@ export default function Login() {
             <Label htmlFor="password">비밀번호</Label>
             <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
+          {mode === "signup" && (
+            <div className="space-y-2">
+              <Label htmlFor="nickname">닉네임 (2~20자)</Label>
+              <div className="relative">
+                <Input
+                  id="nickname"
+                  required
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  maxLength={20}
+                />
+                {nickname.trim().length >= 2 && nickAvail !== null && (
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2">
+                    {nickAvail
+                      ? <Check className="h-4 w-4 text-primary" />
+                      : <X className="h-4 w-4 text-destructive" />}
+                  </span>
+                )}
+              </div>
+              {nickReason && <p className="text-xs text-destructive">{nickReason}</p>}
+              {nickAvail && <p className="text-xs text-primary">사용 가능</p>}
+            </div>
+          )}
           <Button type="submit" disabled={busy} className="w-full">
             {busy ? "처리 중..." : mode === "login" ? "로그인" : "가입하기"}
           </Button>
         </form>
 
         <div className="mt-6 text-center text-sm text-muted-foreground">
-          {mode === "login" ? "계정이 없으신가요?" : "이미 계정이 있으신가요?"}{" "}
-          <button
-            type="button"
-            onClick={() => setMode(mode === "login" ? "signup" : "login")}
-            className="text-primary hover:underline font-medium"
-          >
-            {mode === "login" ? "회원가입" : "로그인"}
-          </button>
+          {mode === "login" ? (
+            <>
+              초대 코드를 받으셨나요?{" "}
+              <button type="button" onClick={() => nav("/invite")} className="text-primary hover:underline font-medium">
+                회원가입
+              </button>
+            </>
+          ) : (
+            <>
+              이미 계정이 있으신가요?{" "}
+              <button type="button" onClick={() => setMode("login")} className="text-primary hover:underline font-medium">
+                로그인
+              </button>
+            </>
+          )}
         </div>
       </Card>
     </div>
