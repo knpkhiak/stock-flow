@@ -12,11 +12,13 @@ import { useIdeas } from "@/hooks/useIdeas";
 import { supabase } from "@/integrations/supabase/client";
 
 type Status = "all" | "watching" | "entered" | "passed";
+type ShareTab = "all" | "private" | "shared";
 type SortKey = "updated" | "newest" | "oldest" | "entered_first";
 
 export default function Ideas() {
   const nav = useNavigate();
   const { ideas, loading, refresh } = useIdeas();
+  const [shareTab, setShareTab] = useState<ShareTab>("all");
   const [status, setStatus] = useState<Status>("all");
   const [market, setMarket] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -37,6 +39,8 @@ export default function Ideas() {
 
   const filtered = useMemo(() => {
     let arr = ideas;
+    if (shareTab === "private") arr = arr.filter((i) => !i.is_shared);
+    else if (shareTab === "shared") arr = arr.filter((i) => i.is_shared);
     if (status !== "all") arr = arr.filter((i) => i.status === status);
     if (market !== "all") arr = arr.filter((i) => i.market === market);
     if (search.trim()) {
@@ -55,7 +59,7 @@ export default function Ideas() {
     else if (sort === "entered_first")
       sorted.sort((a, b) => Number(b.status === "entered") - Number(a.status === "entered"));
     return sorted;
-  }, [ideas, status, market, search, sort]);
+  }, [ideas, shareTab, status, market, search, sort]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -68,6 +72,11 @@ export default function Ideas() {
       </div>
 
       <Card className="glass-card p-4 space-y-3">
+        <ToggleGroup type="single" value={shareTab} onValueChange={(v) => v && setShareTab(v as ShareTab)}>
+          <ToggleGroupItem value="all">전체</ToggleGroupItem>
+          <ToggleGroupItem value="private">본인 비공개</ToggleGroupItem>
+          <ToggleGroupItem value="shared">본인 공유 중</ToggleGroupItem>
+        </ToggleGroup>
         <div className="flex flex-wrap items-center gap-3">
           <ToggleGroup type="single" value={status} onValueChange={(v) => v && setStatus(v as Status)}>
             <ToggleGroupItem value="all">전체</ToggleGroupItem>
