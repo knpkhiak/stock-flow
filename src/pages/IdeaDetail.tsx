@@ -168,6 +168,28 @@ export default function IdeaDetail() {
           <span>·</span>
           <span>수정 {new Date(idea.updated_at).toLocaleDateString("ko-KR")}</span>
         </div>
+
+        <div className="flex items-center justify-between gap-3 pt-3 border-t border-border/40">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-primary/70" />
+            <span className="text-sm font-medium">공유</span>
+            <Switch checked={isShared} onCheckedChange={async (v) => {
+              setIsShared(v);
+              const { error } = await supabase.from("ideas")
+                .update({ is_shared: v, shared_at: v ? new Date().toISOString() : null })
+                .eq("id", idea.id);
+              if (error) { setIsShared(!v); toast.error(error.message); return; }
+              toast.success(v ? "공유되었습니다. 다른 친구들이 볼 수 있어요." : "공유 해제되었습니다.");
+              setIdea({ ...idea, is_shared: v, shared_at: v ? new Date().toISOString() : null });
+            }} />
+          </div>
+          {isShared && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+              <Checkbox checked={sharePnl} onCheckedChange={(v) => setSharePnl(!!v)} />
+              매매 수익률 함께 공유
+            </label>
+          )}
+        </div>
       </Card>
 
       <Card className="glass-card p-0 overflow-hidden">
