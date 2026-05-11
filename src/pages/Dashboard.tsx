@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Wallet, TrendingUp, Activity, Trophy, Lightbulb, AlertTriangle } from "lucide-react";
+import { Wallet, TrendingUp, Activity, Trophy, Lightbulb, AlertTriangle, Globe, MessageSquare, Heart, MessageCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtKRW, fmtSignedKRW, fmtPct, fmtCompactKRW } from "@/lib/format";
