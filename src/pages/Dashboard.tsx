@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Wallet, TrendingUp, Activity, Trophy, Lightbulb, AlertTriangle } from "lucide-react";
+import { Wallet, TrendingUp, Activity, Trophy, Lightbulb, AlertTriangle, Globe, MessageSquare, Heart, MessageCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtKRW, fmtSignedKRW, fmtPct, fmtCompactKRW } from "@/lib/format";
@@ -220,7 +220,128 @@ export default function Dashboard() {
 
         <RecentIdeasCard />
       </div>
+
+      {/* Social grid */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <RecentSharedCard />
+        <RecentBoardCard />
+      </div>
     </div>
+  );
+}
+
+function RecentSharedCard() {
+  const nav = useNavigate();
+  const [items, setItems] = useState<{ id: string; title: string; like_count: number; comment_count: number; shared_at: string | null; user_id: string }[]>([]);
+  const [nicks, setNicks] = useState<Record<string, string>>({});
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("ideas")
+        .select("id,title,like_count,comment_count,shared_at,user_id")
+        .eq("is_shared", true)
+        .order("shared_at", { ascending: false })
+        .limit(3);
+      const list = (data as any[]) || [];
+      setItems(list);
+      const ids = Array.from(new Set(list.map((i) => i.user_id)));
+      if (ids.length) {
+        const { data: profs } = await supabase.from("user_profiles").select("user_id,nickname").in("user_id", ids);
+        const m: Record<string, string> = {};
+        (profs as any[] | null)?.forEach((p) => { m[p.user_id] = p.nickname; });
+        setNicks(m);
+      }
+    })();
+  }, []);
+  return (
+    <Card className="glass-card p-6">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Globe className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-medium text-muted-foreground">최근 공유 노트</h3>
+        </div>
+        <button className="text-xs text-primary hover:underline" onClick={() => nav("/shared")}>모두 보기 →</button>
+      </div>
+      {items.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-6 text-center">아직 공유된 노트가 없어요</div>
+      ) : (
+        <div className="space-y-2">
+          {items.map((i) => (
+            <div
+              key={i.id}
+              className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/10 p-2 cursor-pointer hover:border-primary/40"
+              onClick={() => nav(`/shared/${i.id}`)}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-sm truncate">{i.title}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{nicks[i.user_id] || "익명"}</div>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground shrink-0">
+                <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{i.like_count}</span>
+                <span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{i.comment_count}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function RecentBoardCard() {
+  const nav = useNavigate();
+  const [items, setItems] = useState<{ id: string; title: string; like_count: number; comment_count: number; created_at: string; author_id: string }[]>([]);
+  const [nicks, setNicks] = useState<Record<string, string>>({});
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("board_posts")
+        .select("id,title,like_count,comment_count,created_at,author_id")
+        .order("created_at", { ascending: false })
+        .limit(3);
+      const list = (data as any[]) || [];
+      setItems(list);
+      const ids = Array.from(new Set(list.map((i) => i.author_id)));
+      if (ids.length) {
+        const { data: profs } = await supabase.from("user_profiles").select("user_id,nickname").in("user_id", ids);
+        const m: Record<string, string> = {};
+        (profs as any[] | null)?.forEach((p) => { m[p.user_id] = p.nickname; });
+        setNicks(m);
+      }
+    })();
+  }, []);
+  return (
+    <Card className="glass-card p-6">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-medium text-muted-foreground">최근 게시판 활동</h3>
+        </div>
+        <button className="text-xs text-primary hover:underline" onClick={() => nav("/board")}>모두 보기 →</button>
+      </div>
+      {items.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-6 text-center">첫 글을 작성해보세요</div>
+      ) : (
+        <div className="space-y-2">
+          {items.map((i) => (
+            <div
+              key={i.id}
+              className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/10 p-2 cursor-pointer hover:border-primary/40"
+              onClick={() => nav(`/board/${i.id}`)}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-sm truncate">{i.title}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{nicks[i.author_id] || "익명"}</div>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground shrink-0">
+                <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{i.like_count}</span>
+                <span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{i.comment_count}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
