@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_settings: {
+        Row: {
+          created_at: string
+          is_connected: boolean
+          kis_account_number: string | null
+          kis_account_type: string
+          kis_app_key: string | null
+          kis_app_secret: string | null
+          last_connected_at: string | null
+          last_token: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          is_connected?: boolean
+          kis_account_number?: string | null
+          kis_account_type?: string
+          kis_app_key?: string | null
+          kis_app_secret?: string | null
+          last_connected_at?: string | null
+          last_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          is_connected?: boolean
+          kis_account_number?: string | null
+          kis_account_type?: string
+          kis_app_key?: string | null
+          kis_app_secret?: string | null
+          last_connected_at?: string | null
+          last_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       asset_snapshots: {
         Row: {
           cash_balance: number
@@ -224,8 +266,9 @@ export type Database = {
         Row: {
           code: string
           created_at: string
-          created_by: string
+          created_by: string | null
           id: string
+          is_master: boolean
           is_used: boolean
           memo: string | null
           used_at: string | null
@@ -234,8 +277,9 @@ export type Database = {
         Insert: {
           code: string
           created_at?: string
-          created_by: string
+          created_by?: string | null
           id?: string
+          is_master?: boolean
           is_used?: boolean
           memo?: string | null
           used_at?: string | null
@@ -244,8 +288,9 @@ export type Database = {
         Update: {
           code?: string
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           id?: string
+          is_master?: boolean
           is_used?: boolean
           memo?: string | null
           used_at?: string | null
@@ -630,6 +675,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          is_admin: boolean
           nickname: string
           updated_at: string
           user_id: string
@@ -637,6 +683,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          is_admin?: boolean
           nickname: string
           updated_at?: string
           user_id: string
@@ -644,6 +691,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          is_admin?: boolean
           nickname?: string
           updated_at?: string
           user_id?: string
@@ -655,8 +703,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_list_users: {
+        Args: never
+        Returns: {
+          api_connected: boolean
+          created_at: string
+          email: string
+          is_admin: boolean
+          last_sign_in_at: string
+          nickname: string
+          user_id: string
+        }[]
+      }
       change_nickname: { Args: { new_nickname: string }; Returns: undefined }
       increment_post_view: { Args: { p_post_id: string }; Returns: undefined }
+      set_user_admin: {
+        Args: { p_is_admin: boolean; p_target_user_id: string }
+        Returns: undefined
+      }
       toggle_like: {
         Args: { p_target_id: string; p_target_type: string }
         Returns: Json
