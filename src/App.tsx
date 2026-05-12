@@ -19,6 +19,8 @@ import Assets from "./pages/Assets";
 import SettingsPage from "./pages/Settings";
 import Login from "./pages/Login";
 import Invite from "./pages/Invite";
+import Admin from "./pages/Admin";
+import AdminRoute from "@/components/AdminRoute";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -53,6 +55,7 @@ const App = () => (
             <Route path="/trades" element={<Trades />} />
             <Route path="/assets" element={<Assets />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -22,7 +22,7 @@ export default function Invite() {
 
   const verify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (code.length !== 8) { toast.error("8자리 코드를 입력해주세요"); return; }
+    if (code.length < 8) { toast.error("초대 코드를 입력해주세요"); return; }
     setBusy(true);
     try {
       const { data, error } = await supabase.rpc("verify_invite_code", { p_code: code });
@@ -61,18 +61,18 @@ export default function Invite() {
 
         <form onSubmit={verify} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="code">초대 코드 (8자리)</Label>
+            <Label htmlFor="code">초대 코드</Label>
             <Input
               id="code"
               value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))}
-              maxLength={8}
+              onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 24))}
+              maxLength={24}
               autoFocus
               placeholder="예: ABCD2345"
               className="font-mono tracking-widest text-center text-lg"
             />
           </div>
-          <Button type="submit" disabled={busy || code.length !== 8} className="w-full">
+          <Button type="submit" disabled={busy || code.length < 8} className="w-full">
             {busy ? "확인 중..." : "코드 확인"}
           </Button>
         </form>
