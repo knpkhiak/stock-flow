@@ -2,14 +2,17 @@ import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shield, ShieldOff, Users, KeyRound } from "lucide-react";
+import { Shield, ShieldOff, Users, KeyRound, Lock } from "lucide-react";
 import { useAdminUsers } from "@/hooks/useAdminUsers";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { useState } from "react";
+import ResetPasswordDialog from "./ResetPasswordDialog";
 
 export default function AdminUsersTab() {
   const { users, loading, error, setAdmin } = useAdminUsers();
   const { user } = useAuth();
+  const [resetTarget, setResetTarget] = useState<{ id: string; label: string } | null>(null);
 
   const stats = useMemo(() => {
     const total = users.length;
@@ -68,15 +71,26 @@ export default function AdminUsersTab() {
                       <TableCell>{u.api_connected ? "🟢" : "⚪"}</TableCell>
                       <TableCell>{u.is_admin ? "✓" : "—"}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant={u.is_admin ? "ghost" : "outline"}
-                          onClick={() => onToggle(u.user_id, u.is_admin, u.nickname)}
-                          disabled={isMe && u.is_admin}
-                          title={isMe && u.is_admin ? "본인 권한은 해제할 수 없습니다" : ""}
-                        >
-                          {u.is_admin ? <><ShieldOff className="h-3 w-3 mr-1" />해제</> : <><Shield className="h-3 w-3 mr-1" />부여</>}
-                        </Button>
+                        <div className="flex justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setResetTarget({ id: u.user_id, label: u.nickname ?? u.email ?? u.user_id.slice(0, 8) })}
+                            disabled={isMe}
+                            title={isMe ? "본인 비밀번호는 설정 화면에서 변경하세요" : "비밀번호 재설정"}
+                          >
+                            <Lock className="h-3 w-3 mr-1" />비밀번호
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={u.is_admin ? "ghost" : "outline"}
+                            onClick={() => onToggle(u.user_id, u.is_admin, u.nickname)}
+                            disabled={isMe && u.is_admin}
+                            title={isMe && u.is_admin ? "본인 권한은 해제할 수 없습니다" : ""}
+                          >
+                            {u.is_admin ? <><ShieldOff className="h-3 w-3 mr-1" />해제</> : <><Shield className="h-3 w-3 mr-1" />부여</>}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -86,6 +100,13 @@ export default function AdminUsersTab() {
           </div>
         )}
       </Card>
+
+      <ResetPasswordDialog
+        open={!!resetTarget}
+        onOpenChange={(v) => { if (!v) setResetTarget(null); }}
+        targetUserId={resetTarget?.id ?? null}
+        targetLabel={resetTarget?.label ?? ""}
+      />
     </div>
   );
 }
