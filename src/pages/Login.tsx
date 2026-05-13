@@ -126,8 +126,8 @@ export default function Login() {
 
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">이메일</Label>
-            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Label htmlFor="username">아이디</Label>
+            <Input id="username" type="text" required autoComplete="username" placeholder="영문/숫자/_ 4~20자" value={username} onChange={(e) => setUsername(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">비밀번호</Label>
