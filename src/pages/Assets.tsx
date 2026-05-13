@@ -110,11 +110,23 @@ export default function Assets() {
   const syncKisBalance = async () => {
     setKisSyncing(true);
     try {
+      // 본인 API 키가 등록되어 있을 때만 호출 (미설정 시 조용히 스킵)
+      const { data: cfg } = await supabase
+        .from("api_settings")
+        .select("kis_app_key")
+        .maybeSingle();
+      if (!cfg?.kis_app_key) {
+        setKisSyncing(false);
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("kis-proxy", {
         body: { action: "balance", env: getKisEnv() },
       });
       if (error) throw new Error(error.message);
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if ((data as any)?.error) {
+        if ((data as any).code === "API_NOT_CONFIGURED") { setKisSyncing(false); return; }
+        throw new Error((data as any).error);
+      }
       const out2 = ((data as any)?.output2 ?? [])[0] ?? {};
       const total = Number(out2.tot_evlu_amt ?? 0);
       const cashBal = Number(out2.dnca_tot_amt ?? 0);
