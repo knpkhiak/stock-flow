@@ -12,13 +12,18 @@ import { validateNickname } from "@/lib/profileUtils";
 import { checkNicknameAvailable } from "@/hooks/useNickname";
 import { INVITE_KEY } from "./Invite";
 
+// 아이디 → 내부 이메일 변환 (Supabase Auth는 이메일을 요구하므로 가짜 도메인 사용)
+const USERNAME_DOMAIN = "stockflow.local";
+const usernameToEmail = (u: string) => `${u.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
+const isValidUsername = (u: string) => /^[a-zA-Z0-9_]{4,20}$/.test(u.trim());
+
 export default function Login() {
   const location = useLocation();
   const nav = useNavigate();
   const { user } = useAuth();
   const isSignup = location.pathname === "/signup";
   const [mode, setMode] = useState<"login" | "signup">(isSignup ? "signup" : "login");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
   const [nickAvail, setNickAvail] = useState<boolean | null>(null);
@@ -54,7 +59,12 @@ export default function Login() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isValidUsername(username)) {
+      toast.error("아이디는 영문/숫자/_ 4~20자");
+      return;
+    }
     setBusy(true);
+    const email = usernameToEmail(username);
     try {
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -65,7 +75,6 @@ export default function Login() {
         const inviteCode = sessionStorage.getItem(INVITE_KEY);
         if (!inviteCode) { nav("/invite", { replace: true }); return; }
 
-        // 1. signUp
         const { data: signUp, error: sErr } = await supabase.auth.signUp({
           email, password,
           options: { emailRedirectTo: `${window.location.origin}/dashboard` },
@@ -73,12 +82,10 @@ export default function Login() {
         if (sErr) throw sErr;
         const newUserId = signUp.user?.id;
 
-        // 2. 자동 로그인 (이메일 확인 미사용 환경 대비)
         if (!signUp.session) {
           await supabase.auth.signInWithPassword({ email, password });
         }
 
-        // 3. 프로필 생성 + 초대 코드 사용 처리
         if (newUserId) {
           const { error: pErr } = await supabase.from("user_profiles").insert({
             user_id: newUserId, nickname: nickname.trim(),
