@@ -1,0 +1,1 @@
+UPDATE public.invite_codes SET code = 'ADMN2026' WHERE code = 'STOCKFLOWADMIN2026' AND is_master = true AND is_used = false;
