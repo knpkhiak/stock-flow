@@ -100,6 +100,13 @@ export default function AdminUsersTab() {
           </div>
         )}
       </Card>
+
+      <ResetPasswordDialog
+        open={!!resetTarget}
+        onOpenChange={(v) => { if (!v) setResetTarget(null); }}
+        targetUserId={resetTarget?.id ?? null}
+        targetLabel={resetTarget?.label ?? ""}
+      />
     </div>
   );
 }
